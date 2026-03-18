@@ -1,15 +1,13 @@
-# Authors
+# Automated formal analysis of Signal’s Double Ratchet: attacks, fixes and security proofs
 
-- Vincent Cheval, University of Oxford <vincent.cheval@balliol.ox.ac.uk>
-- Charlie Jacomme, Inria Grand Est <charlie.jacomme@inria.fr>
-- Jessica Richards, University of Oxford <jessica.richards@kellogg.ox.ac.uk>
+Artifact of a paper published at IEEE Symposium on Security and Privacy 2026.
 
-# ProVerif
+## ProVerif
 
 We use a development version of ProVerif. All our tests were run on the following version:
 https://gitlab.inria.fr/bblanche/proverif/-/tree/1a9ae40d62f44f937a7a68453c7841f5672a8d5c
 
-# Models
+## Models
 
 We have four model files, as library files in `models/`:
  * `DR-functions.pvl` defines the main DR functions.
@@ -24,7 +22,7 @@ The following folders contain additional files:
 * `DR-props/` contains the proofs over `DR-model.pvl`
 * `FULL-props/` contains the proofs over `FULL-model.pvl`
 
-# Configurations
+## Configurations
 
 We have several parameters in the model that can be turned on or off. These are stored in params/switches.pvl.
 
@@ -37,7 +35,7 @@ The first three can be enabled / disabled by running the command `make config-OP
 
 Note under all standard configurations the `fixed_version` parameter is set to true, it should only be disabled in order to run the `fs-attack-none-ck.pv` file (this happens automatically in the make file).
 
-# Attacks 
+## Attacks 
 
 We have three attack files, that run on some query and return an attack against it.
 
@@ -52,9 +50,9 @@ We have three attack files, that run on some query and return an attack against 
  * `make fs-attack-replay` (25s)
  * `make fs-attack-weak-state` (1 minute)
 
-# DR-Proofs
+## DR-Proofs
 
-## Lemmas
+### Lemmas
 
 `libs/lemmas.cpp.pvl` defines some lemmas over the state, used for other proofs.
 
@@ -76,7 +74,7 @@ Make commands and expected run time (under configuration dhs-spk):
  * `make dr-lemma5` (45s)
  * `make dr-lemma6` (3s)
 
-## Sanity checks
+### Sanity checks
 
 We prove some sanity checks in `DR-proofs/sanity/*.pv`
 
@@ -92,7 +90,7 @@ Make commands and expected run time (under configuration dhs-spk):
 
 
 
-## FS & PCS proofs
+### FS & PCS proofs
 
 Forward secrecy is proved in `DR-proofs/proof_fs.pv`, Post compromise security in `DR-proofs/proof_pcs.pv`.
 
@@ -103,7 +101,7 @@ Make commands and expected run time (under configuration dhs-spk):
  * `make dr-fs` (8s)
  * `make dr-pcs` (50 mins)
  
-## FULL-Proofs
+### FULL-Proofs
 
 The full proofs follow the same pattern, with `dr` in the make commands replaced with `full`. Notably, there is only one sanity check in this version `full-sanity`, due to the increased memory requirements.
 
@@ -120,4 +118,8 @@ Make commands and expected run time (under configuration basic):
  * `make full-pcs`    (7 hours)
 
 
+## Authors
 
+- Vincent Cheval, University of Oxford <vincent.cheval@balliol.ox.ac.uk>
+- Charlie Jacomme, Inria Grand Est <charlie.jacomme@inria.fr>
+- Jessica Richards, University of Oxford <jessica.richards@kellogg.ox.ac.uk>
