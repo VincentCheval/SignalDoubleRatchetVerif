@@ -1,0 +1,85 @@
+(* -lib ../params/params-no-comp.pvl *)
+(* -lib ../params/switches.pvl *)
+(* -lib ../libs/gsverif_library.pvl *)
+(* -lib ../libs/crypto.pvl *)
+(* -lib ../libs/format.pvl*)
+(* -lib ../libs/proof_helpers.pvl *)
+(* -lib ../models/DR-functions.pvl *)
+(* -lib ../libs/lemmas.pvl *)
+(* -lib ../models/PQXDH-model.pvl *)
+(* -lib ../models/FULL-model.pvl *)
+
+(*************************************************************
+ *                                                           *
+ *  Automated formal analysis of Signal’s Double Ratchet:    *
+ *    attacks, fixes and security proofs                     *
+ *                                                           *
+ *  Vincent Cheval, Charlie Jacomme, and Jessica Richards    *
+ *                                                           *
+ *  IEEE Symposium on Security and Privacy 2026              *
+ *                                                           *
+ *************************************************************)
+
+set reconstructTrace = true.
+set preciseActions = true.
+set nounifIgnoreAFewTimes = auto.
+noselect z:scalar; attacker(SMUL(z,G)) / 30000. 
+
+expand Axioms_GSVerif().
+expand axioms_secrecy_no_comp(). 
+expand axioms_public_knowledge(). 
+
+restriction ts,ts':timestamp;
+  event(OneRepl(ts)) && event(OneRepl(ts')) ==> ts = ts'
+.
+
+const idA, idB: id.
+
+
+restriction n:nat, ts,ts':timestamp;
+  event(OneReplN(n, ts)) && event(OneReplN(n, ts')) ==> ts = ts'
+.
+
+restriction b:bool;
+ event(isBool(b)) ==>  b = false (* OPK restriction - false is a little faster *)
+.
+
+restriction i:id, p:point, k:kempub;
+  event(BrokenKEM) ==> false ;
+  event(BrokenDH) ==> false;
+  event(CompromiseIK(i)) ==> false;
+  event(CompromiseSPK(i,p)) ==> false;
+  event(CompromiseOPK(i,p)) ==> false;
+  event(CompromisePQPK(i,k)) ==> false
+.
+
+restriction s:session_id, r:bool, l,m_idx,r_idx:nat;
+  let chA = state_chan(session(s,true,idA,idB)) in
+  event(Sanity(chA,l,m_idx,r_idx)) ==> 
+    (l,m_idx,r_idx) = (0,0,1) || 
+    (l,m_idx,r_idx) = (0,1,1);
+
+  let chB = state_chan(session(s,false,idB,idA)) in
+  event(Sanity(chB,l,m_idx,r_idx)) ==> 
+    (l,m_idx,r_idx) = (4,0,0) ||
+    (l,m_idx,r_idx) = (1,1,2) ||
+    (l,m_idx,r_idx) = (2,2,2)
+.
+
+restriction id1,id2:id,r:bool, s:session_id, l,m_idx,r_idx:nat;
+  event(Sanity(state_chan(session(s,r,id1,id2)),l,m_idx,r_idx)) ==> 
+    (r,id1,id2) = (true,idA,idB) || (r,id1,id2) = (false,idB,idA)
+.
+
+(* Alice sends two messages to Bob, Bob skips the first and receives the second *)
+
+query s,s':session_id, p:point, nr:nat, msg:bitstring; 
+  let sA = session(s,true,idA,idB) in (* Alice *)
+  let sB = session(s,false,idB,idA) in (* Bob *)
+
+  (* Target *)
+   event(Receive(sB,p,1,msg)) && 
+  event(Send(sA,p,1,msg))
+.
+
+process SystemFullReach

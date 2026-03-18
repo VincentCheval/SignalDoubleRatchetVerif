@@ -1,0 +1,21 @@
+(* Compromise parameters *)
+
+letfun allow_CK_compromise = true.
+
+letfun allow_RK_compromise = true.
+
+letfun allow_DHs_compromise = true.
+
+letfun allow_MK_compromise = true.
+
+letfun allow_HK_compromise = true.
+
+letfun allow_compromise =
+allow_CK_compromise || allow_RK_compromise || allow_MK_compromise || allow_HK_compromise.
+
+(* Proof Helper *)
+
+letfun precise_scalar_pqxdh = true.
+letfun precise_scalar_dr = true.
+
+letfun precise_for_lemma = false.

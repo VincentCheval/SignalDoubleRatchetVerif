@@ -1,0 +1,471 @@
+(* -lib ../params/params-all-comp.pvl *)
+(* -lib ../params/switches.pvl *)
+(* -lib ../libs/gsverif_library.pvl *)
+(* -lib ../libs/crypto.pvl *)
+(* -lib ../libs/format.pvl*)
+(* -lib ../libs/proof_helpers.pvl *)
+
+(*************************************************************
+ *                                                           *
+ *  Automated formal analysis of Signal’s Double Ratchet:    *
+ *    attacks, fixes and security proofs                     *
+ *                                                           *
+ *  Vincent Cheval, Charlie Jacomme, and Jessica Richards    *
+ *                                                           *
+ *  IEEE Symposium on Security and Privacy 2026              *
+ *                                                           *
+ *************************************************************)
+
+(** Settings *)
+
+set privateCommOnPublicTerms = false.
+
+
+(** Global constants *)
+
+const none_ck: chain_key.
+const none_dh: point.
+const none_hk: header_key.
+const none_bs: bitstring.
+const none_nonce:nonce.
+const none_hd: header.
+
+(** Initialization process
+------------------------------------ *)
+
+(* Extracted from Sec. 3.3 / 4.4:
+  --------
+  def RatchetInitAlice(state, SK, bob_dh_public_key, shared_hka, shared_nhkb):
+      state.DHs = GENERATE_DH()
+      state.DHr = bob_dh_public_key
+      state.RK, state.CKs, state.NHKs = KDF_RK(SK, DH(state.DHs, state.DHr)) 
+      state.CKr = None
+      state.Ns = 0
+      state.Nr = 0
+      state.PN = 0
+      state.HKs = shared_hka
+      state.HKr = None
+      state.NHKr = shared_nhkb
+      state.MKSKIPPED = {}
+
+
+  def RatchetInitBob(state, SK, bob_dh_key_pair, shared_hka, shared_nhkb):
+      state.DHs = bob_dh_key_pair
+      state.DHr = None
+      state.RK = SK
+      state.CKs = None
+      state.CKr = None
+      state.Ns = 0
+      state.Nr = 0
+      state.PN = 0
+      state.MKSKIPPED = {}
+      state.HKs = None
+      state.NHKs = shared_nhkb
+      state.HKr = None
+      state.NHKr = shared_hka
+*)
+
+let RatchetInitAlice(sinfo:session_info, SK:root_key, bob_dh_public_key:point, shared_hka:header_key, shared_nhkb:header_key, header_encryption:bool) =
+  
+  let dhs = generate_dh() in (* for DR, unless forced, we need to have fresh values here *)
+  let KeyPair(_,dhs_pub) = dhs in
+  out(att,dhs_pub);  (* Reveal the public key to the attacker *)
+  
+    (*** Proof Helper *)
+    event KnowledgeAtt(dhs_pub);
+    (*** End Proof Helper *)
+
+  let dhr = bob_dh_public_key in
+  
+  (* Alice has the role of the sender at initialisation so it is the one creating 
+    the DH_product. *)
+  let g_sender_receiver = dh_left_create(dhs,dhr) in
+
+  let (rk:root_key,cks:chain_key, nhks':header_key) = kdf_rk_he(SK, g_sender_receiver) in
+  let nhks: header_key = if header_encryption then nhks' else none_hk in 
+  out(att, nhks);
+  let (shka: header_key, snhkb: header_key) = if header_encryption then (shared_hka, shared_nhkb) else (none_hk, none_hk) in 
+  
+  out(state_chan(sinfo), cell(state(dhs,dhr,rk,cks,none_ck,0,0,0, shka, nhks, none_hk, snhkb),1,0,0))
+
+.
+
+let RatchetInitBob(sinfo:session_info, SK:root_key, bob_dh_key_pair:key_pair, shared_hka:header_key, shared_nhkb:header_key, header_encryption:bool) =
+  
+  let dhs = bob_dh_key_pair in
+  let rk = SK in
+  let (shka: header_key, snhkb: header_key) = if header_encryption then (shared_hka, shared_nhkb) else (none_hk, none_hk) in 
+  
+  out(state_chan(sinfo), cell(state(dhs,none_dh,rk,none_ck,none_ck,0,0,0, none_hk, snhkb, none_hk, shka),0,0,0))
+.
+
+(** Sending messages process
+------------------------------------ *)
+
+
+(* Extracted from Sec. 3.4 / 4.5:
+  --------
+  def RatchetEncrypt(state, plaintext, AD):
+    state.CKs, mk = KDF_CK(state.CKs)
+    header = HEADER(state.DHs, state.PN, state.Ns)
+    enc_header = HENCRYPT(state.HKs, header)
+    state.Ns += 1
+    if header_encryption:
+      return none, enc_header, nonce, ENCRYPT(mk, plaintext, CONCAT(AD, enc_header))
+    else:
+      return header, enc_header, nonce, ENCRYPT(mk, plaintext, CONCAT(AD, header))
+
+*)
+
+let RatchetEncrypt(sinfo:session_info, plaintext:bitstring, ad:associated_data, header_encryption:bool) =
+  
+  in(state_chan(sinfo), cell(st,r_idx,m_idx,rcv_idx));
+    
+    (*** Proof Helper ***)
+    event Sanity(state_chan(sinfo),0,m_idx,r_idx);
+    let () = PH_counter_change(modif_counter(sinfo),m_idx) in
+    let () = PH_synch_value(modif_counter(sinfo),m_idx,(st,r_idx,rcv_idx)) in
+    (*** End Proof Helper ***)
+  if CKs(st) <> none_ck then       (* see remark in Sec 3.3, Bob will not send mesage until first asymmetric ratchet *)
+  let (cks:chain_key,dr_mk:message_key) = kdf_ck(CKs(st)) in
+  let hd = form_header( DHs(st), PN(st),  Ns(st)) in
+
+  (** Triple Ratchet pq message key chosen by attacker **)
+  in(att, (pq_mk:message_key));
+  let tr_mk = kdf_hybrid(dr_mk, pq_mk) in 
+
+  let KeyPair(_,dhs_pub) = DHs(st) in
+  event MessageKey(sinfo,Sender,dhs_pub,tr_mk, Ns(st), r_idx);  
+  event Send(sinfo, dhs_pub, Ns(st), plaintext);
+  in (att, h_nonce:nonce);
+  new ts[]:timestamp;
+  event Nonce_used(sinfo, h_nonce, ts);
+  let enc_header = hencrypt(HKs(st), h_nonce, hd) in 
+  let new_state = state(DHs(st), DHr(st), RK(st), cks, CKr(st), Ns(st) + 1, Nr(st), PN(st), HKs(st), NHKs(st), HKr(st), NHKr(st)) in
+  
+
+  
+  if header_encryption then 
+    out(att, (none_hd, enc_header, h_nonce, encrypt(tr_mk,plaintext, concat_he(ad,enc_header))));
+    out(state_chan(sinfo), cell(new_state,r_idx,m_idx+1,rcv_idx))
+  else 
+    out(att, (hd, none_bs, none_nonce, encrypt(tr_mk,plaintext, concat(ad,hd))));
+	  out(state_chan(sinfo), cell(new_state,r_idx,m_idx+1,rcv_idx))
+    
+.
+
+(** Receiving messages process
+------------------------------------ *)
+
+(* Extracted from Sec. 3.5 / 4.6:
+  --------
+  def DHRatchet(state, header):
+      state.PN = state.Ns
+      state.Ns = 0
+      state.Nr = 0
+      state.HKs = state.NHKs
+      state.HKr = state.NHKr
+      state.DHRr = header.dh
+      state.RK, state.CKr, state.NHKr = KDF_RK_HE(state.RK, DH(state.DHRs, state.DHRr))
+      state.DHRs = GENERATE_DH()
+      state.RK, state.CKs, state.NHKs = KDF_RK_HE(state.RK, DH(state.DHRs, state.DHRr))
+*)
+
+
+letfun DHRatchet(st:internal_state,header:header, is_HE: bool) =
+  let Header(hdDH:point,_:nat,_:nat) = header in
+
+  let newPN = Ns(st) in
+  let newNs = 0 in
+  let newNr = 0 in
+  let newDHr = hdDH in
+  let newHKs = NHKs(st) in
+  let newHKr = NHKr(st) in 
+    
+  let (rk:root_key, newCKr:chain_key, newNHKr: header_key) = kdf_rk_he(RK(st), dh(DHs(st),newDHr)) in
+
+  let newDHs = generate_dh() in (* for DR, unless forced, we need to have fresh values here *)
+
+  let (newRK:root_key, newCKs:chain_key, newNHKs:header_key) =  kdf_rk_he(rk, dh(newDHs,newDHr)) in 
+  
+  if is_HE then 
+    state(newDHs, newDHr, newRK, newCKs, newCKr, newNs, newNr, newPN, newHKs, newNHKs, newHKr, newNHKr) 
+  else 
+    state(newDHs, newDHr, newRK, newCKs, newCKr, newNs, newNr, newPN, none_hk, none_hk, none_hk, none_hk) 
+  
+.
+
+(* Extracted from Sec. 3.5 / 4.6:
+  --------
+  def SkipMessageKeys(state, until):
+    if state.Nr + MAX_SKIP < until:
+        raise Error()
+    if state.CKr != None:
+        while state.Nr < until:
+            state.CKr, mk = KDF_CK(state.CKr)
+            state.MKSKIPPED[state.DHr, state.Nr] = mk
+            state.Nr += 1
+  
+  In our model, our process does not take [until] and [MAX_SKIP] as argument. The process
+  allows to increase the chain as much as one want. However, the test "state.Nr = until" will be done outside of the process. Finally, the "Error" condition "state.Nr + MAX_SKIP < until" will not be modelled as ProVerif is not able to compare three integer variables. 
+*)
+
+
+let SkipMessageKeys(sinfo:session_info, header_encryption: bool) =
+  
+  let st_chan = state_chan(sinfo) in
+  in(st_chan, cell(st,r_idx,m_idx,rcv_idx));
+
+    (*** Proof Helper ***)
+    event Sanity(state_chan(sinfo),1,m_idx,r_idx);
+    let () = PH_counter_change(recv_counter(sinfo),rcv_idx) in
+    let () = PH_synch_value(recv_counter(sinfo),rcv_idx,(st,r_idx,m_idx)) in
+    let () = PH_counter_change(modif_counter(sinfo),m_idx) in
+    let () = PH_synch_value(modif_counter(sinfo),m_idx,(st,r_idx,rcv_idx)) in
+    (*** End Proof Helper ***)
+
+  if CKr(st) <> none_ck then
+
+  let (ckr:chain_key,mk:message_key) = kdf_ck(CKr(st)) in
+  
+	let () = if header_encryption then insert_skipped_message_he(sinfo, HKr(st), Nr(st), mk, m_idx, r_idx) 
+           else insert_skipped_message(sinfo, DHr(st), Nr(st), mk, m_idx, r_idx) in
+  
+  let new_st = state(DHs(st), DHr(st), RK(st), CKs(st), ckr, Ns(st), Nr(st) +1, PN(st), HKs(st), NHKs(st), HKr(st), NHKr(st)) in
+    
+	out(st_chan, cell(new_st,r_idx,m_idx+1,rcv_idx+1))
+.
+
+letfun only_skipped_message_keys(cell_before:cell_content,cell_after:cell_content) = 
+  let cell(state(dhs,dhr,rk,cks,_,ns,nr1,pn, hks, nhks, hkr, nhkr),r_idx,m_idx1,rcv_idx1) = cell_before in
+  let cell(state(=dhs,=dhr,=rk,=cks,_,=ns,nr2,=pn, =hks, =nhks, =hkr, =nhkr),=r_idx,m_idx2,rcv_idx2) = cell_after in
+  nr1 <= nr2 && m_idx1 <= m_idx2 && rcv_idx1 <= rcv_idx2
+.
+
+(* Extracted from Sec. 3.5 / 4.6:
+  --------
+  def RatchetDecrypt(state, header, ciphertext, AD):
+      plaintext = TrySkippedMessageKeys(state, header, ciphertext, AD)
+      if plaintext != None:
+          return plaintext
+      if header.dh != state.DHr:                 
+          SkipMessageKeys(state, header.pn)
+          DHRatchet(state, header)
+      SkipMessageKeys(state, header.n)             
+      state.CKr, mk = KDF_CK(state.CKr)
+      state.Nr += 1
+      return DECRYPT(mk, ciphertext, CONCAT(AD, header))
+
+  def TrySkippedMessageKeys(state, header, ciphertext, AD):
+      if (header.dh, header.n) in state.MKSKIPPED:
+          mk = state.MKSKIPPED[header.dh, header.n]
+          del state.MKSKIPPED[header.dh, header.n]
+          return DECRYPT(mk, ciphertext, CONCAT(AD, header))
+      else:
+          return None
+*)
+
+
+let BasicDecrypt(sinfo:session_info, hd:header, ciphertext:bitstring, header_ad:associated_data,cell_value:cell_content) =
+  let st_chan = state_chan(sinfo) in
+  let Header(headerDH:point, headerPN:nat, headerN:nat) = hd in
+  let cell(st,r_idx,m_idx,rcv_idx) = cell_value in
+  let state(dhs, =headerDH, rk, cks, ckr, ns, =headerN, pn, hks, nhks, hkr, nhkr) = st in
+    (* The three condition ensures that we have executed SkipMessageKeys(state, header.n) *)
+    (*** Proof Helper ***) 
+    event Sanity(state_chan(sinfo),2,m_idx,r_idx);
+    let () = PH_counter_change(recv_counter(sinfo),rcv_idx) in
+    let () = PH_synch_value(recv_counter(sinfo),rcv_idx,(st,r_idx, m_idx)) in
+    let () = PH_counter_change(modif_counter(sinfo),m_idx) in
+    let () = PH_synch_value(modif_counter(sinfo),m_idx,(st,r_idx,rcv_idx)) in
+    (*** End Proof Helper ***)
+  
+  if not(fixed_version) || ckr <> none_ck then    (* ADDITION: we would in theory only need the next addition, but adding it here avoids having to put to many precise. *) 
+
+
+  let (newCKr:chain_key,dr_mk:message_key) = kdf_ck(ckr) in
+
+  (** Triple Ratchet pq message key chosen by attacker **)
+  in(att, (pq_mk:message_key));
+  let tr_mk = kdf_hybrid(dr_mk, pq_mk) in 
+
+  event MessageKey(sinfo,Receiver,headerDH,tr_mk,headerN,r_idx);  
+  let new_st = state(dhs, headerDH, rk, cks, newCKr, ns, headerN +1, pn, hks, nhks, hkr, nhkr) in
+
+
+
+  let plaintext = decrypt(tr_mk, ciphertext, header_ad) in
+      event Receive(sinfo, headerDH,headerN,plaintext);
+      out(st_chan,cell(new_st,r_idx,m_idx+1,rcv_idx+1))
+    else 
+      event AuthFail(sinfo,headerDH,headerN);
+      out(st_chan,cell(new_st,r_idx,m_idx+1,rcv_idx+1))
+.
+
+
+let TrySkippedMessages(sinfo: session_info, st: internal_state, opt_hd: header, ciphertext:bitstring, ad: associated_data) =
+    
+    let Header(headerDH, headerPN, headerN) = opt_hd in
+    (* TrySkippedMessageKeys(state, header, ciphertext, AD) *)
+    get mkskipped(=sinfo,=headerDH,=headerN,dr_mk,m_idx,r_idx,_) in 
+    let () = delete_skipped_message(sinfo,headerDH,headerN,dr_mk) in
+    (* we found a skipped message key corresponding *)  
+    event Reach(sinfo,m_idx,r_idx);
+
+
+  (** Triple Ratchet pq message key chosen by attacker **)
+  in(att, (pq_mk:message_key));
+  let tr_mk = kdf_hybrid(dr_mk, pq_mk) in 
+
+    let plaintext = decrypt(tr_mk, ciphertext, concat(ad,opt_hd)) in
+      event MessageKey(sinfo,Receiver,headerDH,tr_mk,headerN,r_idx);    
+      event Receive(sinfo, headerDH,headerN,plaintext)
+    else 
+      event AuthFail(sinfo,headerDH,headerN)
+.
+
+let TrySkippedMessagesHE(sinfo: session_info, st: internal_state, enc_header: bitstring, h_nonce:nonce,  ciphertext:bitstring, ad: associated_data) =
+  
+  get mkskipped_he(=sinfo, hkr, n, dr_mk, m_idx, r_idx, ts) suchthat (
+    HeaderN(hdecrypt(hkr, h_nonce, enc_header)) = n 
+  ) in 
+  let () = delete_skipped_message_he(sinfo, hkr, n, dr_mk) in 
+  event Reach(sinfo,m_idx,r_idx);
+
+  let Header(headerDH, headerPN, headerN) = hdecrypt(hkr, h_nonce, enc_header) in
+  
+
+  (** Triple Ratchet pq message key chosen by attacker **)
+  in(att, (pq_mk:message_key));
+  let tr_mk = kdf_hybrid(dr_mk, pq_mk) in 
+
+  let plaintext = decrypt(tr_mk, ciphertext, concat_he(ad,enc_header)) in
+    event MessageKey(sinfo,Receiver,headerDH,tr_mk,headerN,r_idx);    
+    event Receive(sinfo, headerDH,headerN,plaintext)
+  else 
+    event AuthFail(sinfo,headerDH,headerN)
+.
+
+letfun DecryptHeader(st: internal_state, enc_header: bitstring, h_nonce:nonce) =  
+    let hd = hdecrypt(HKr(st), h_nonce, enc_header) 
+      in (hd, false)
+    else let hd = hdecrypt(NHKr(st), h_nonce, enc_header) in (hd, true)
+.
+
+
+
+let RatchetDecrypt(sinfo:session_info, ad:associated_data, header_encryption:bool) =
+
+  in(att, (opt_hd:header, ciphertext:bitstring));
+  in(att, (opt_enc_header: bitstring, h_nonce:nonce)) [precise];
+
+    (***) let () = PH_precise_input((opt_hd,ciphertext)) in
+
+  let st_chan = state_chan(sinfo) in
+  in(st_chan,cell(st,r_idx,m_idx,rcv_idx));
+    
+    (***) let () = if precise_for_lemma then PH_precise_input((st,r_idx,m_idx,rcv_idx)) else () in
+
+   if header_encryption  || not(fixed_version) || HeaderDHP(opt_hd) <> none_dh  then  (* Addition *)
+    (if header_encryption then TrySkippedMessagesHE(sinfo, st, opt_enc_header, h_nonce, ciphertext, ad)
+    else TrySkippedMessages(sinfo, st, opt_hd, ciphertext, ad))
+  |
+  ( 
+    (* Overapproximation of the Else branch of the Get. *)
+    
+    let (hd: header, ratchet_needed: bool) = 
+      if header_encryption then DecryptHeader(st, opt_enc_header, h_nonce)
+      else (opt_hd, HeaderDHP(opt_hd) <> DHr(st)) 
+    in
+    
+    let Header(headerDH, headerPN, headerN) = hd in
+    let encryption_ad = if header_encryption then concat_he(ad, opt_enc_header) else concat(ad, hd) in
+    if ratchet_needed  
+    then (
+        (*** Proof Helper ***) 
+        event Sanity(state_chan(sinfo),4,m_idx,r_idx);
+        let () = PH_counter_change(modif_counter(sinfo),m_idx) in
+        let () = PH_synch_value(modif_counter(sinfo),m_idx,(st,r_idx,rcv_idx)) in
+        let () = PH_counter_change(ratchet_counter(sinfo),r_idx) in
+        let () = PH_synch_value(ratchet_counter(sinfo),r_idx,(st,m_idx,rcv_idx)) in  
+        (*** End Proof Helper ***)
+      
+      if Nr(st) = headerPN then (* Negation of the condition in "while state.Nr < until:" from SkipMessageKeys*)
+      let st1 = DHRatchet(st,opt_hd, header_encryption) in
+      let KeyPair(dhs_prv,dhs_pub) = DHs(st1) in
+      event HonestDH(sinfo, dhs_prv, dhs_pub, r_idx);
+      event DHrUsed(sinfo, headerDH, r_idx);  
+      out(att, (NHKs(st1), NHKr(st1)));   
+      out(att,dhs_pub);
+      event KnowledgeAtt(dhs_pub);
+      out(st_chan,cell(st1,r_idx+2,m_idx+1,rcv_idx)) |
+
+      in(st_chan, cell_value_after_skip:cell_content);
+      
+      if only_skipped_message_keys(cell(st1,r_idx+2,m_idx+1,rcv_idx),cell_value_after_skip) then
+  
+      BasicDecrypt(sinfo, opt_hd, ciphertext, encryption_ad, cell_value_after_skip) 
+    ) else (
+      BasicDecrypt(sinfo, opt_hd, ciphertext, encryption_ad, cell(st,r_idx,m_idx,rcv_idx))
+    )
+  )
+.
+
+
+(* We do not allow the attacker to compromise a used receiver message key, as it is deleted after use. *)
+
+restriction sinfo:session_info, dhs:point, pq_mk,dr_mk:message_key, n,r_idx:nat, i,j:time;
+	event(CompromiseMK(sinfo,dr_mk,n,r_idx))@i && event(MessageKey(sinfo,Receiver,dhs, kdf_hybrid(dr_mk,pq_mk) ,n,r_idx))@j ==> i < j.
+
+let compromise_mkskipped(sinfo:session_info) =
+  if allow_MK_compromise then
+  in(att,dhr:point);
+  in(att,n:nat);
+  get mkskipped(=sinfo,=dhr,=n,mk,_,r_idx,_) in 
+  event CompromiseMK(sinfo,mk,n,r_idx);
+  out(att,mk)
+.
+
+let compromise(sinfo:session_info) =
+  compromise_mkskipped(sinfo) |
+  if allow_compromise then
+  let st_chan = state_chan(sinfo) in
+  in(st_chan, cell(state(dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx));
+  event Compromise(sinfo,r_idx);
+  let KeyPair(dhs_prv,_) = dhs in
+  
+  out(st_chan, cell(state(dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) |
+  (if allow_HK_compromise then event CompromiseHK(sinfo, hks, nhks, hkr, nhkr, r_idx); out(att, (hks, nhks, hkr, nhkr))) |
+  (if allow_RK_compromise then event CompromiseRK(sinfo,rk,r_idx); out(att,rk)) |
+  (if allow_DHs_param then if allow_DHs_compromise then event CompromiseDHs(sinfo,dhs_prv,r_idx); out(att,dhs_prv)) | (* One of these is parametrised e.g. for proofs like sanity and the other is for speed reasons *)
+  if allow_CK_compromise then
+  (event CompromiseCKs(sinfo,cks,ns,r_idx); out(att,cks)) |
+  (event CompromiseCKr(sinfo,ckr,nr,r_idx); out(att,ckr))
+
+.
+
+(** Finally launching processes
+------------------------------------ *)
+
+let DoubleRatchet(sinfo:session_info, ad:associated_data, header_encryption:bool) =
+    ! SkipMessageKeys(sinfo, header_encryption)
+  | ! RatchetDecrypt(sinfo,ad,header_encryption)
+  | ! new secret_message:bitstring; RatchetEncrypt(sinfo, secret_message,ad, header_encryption)
+  | ! compromise(sinfo)
+.
+
+let AliceDoubleRatchet(sinfo:session_info, SK:root_key, bob_dh_public_key:point, shared_hk: header_key, shared_nhk:header_key, ad:associated_data, header_encryption:bool) = 
+  event Header_Encryption(sinfo,header_encryption); 
+  (    
+      RatchetInitAlice(sinfo,SK,bob_dh_public_key, shared_hk, shared_nhk, header_encryption)
+    | DoubleRatchet(sinfo, ad, header_encryption)
+  )
+.
+
+let BobDoubleRatchet(sinfo:session_info, SK:root_key, bob_dh_key_pair:key_pair, shared_hk: header_key, shared_nhk:header_key, ad:associated_data, header_encryption:bool) = 
+  event Header_Encryption(sinfo,header_encryption); 
+  (
+      RatchetInitBob(sinfo,SK,bob_dh_key_pair, shared_hk, shared_nhk, header_encryption)
+    | DoubleRatchet(sinfo, ad, header_encryption)
+  )
+.

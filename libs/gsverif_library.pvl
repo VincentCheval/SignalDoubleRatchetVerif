@@ -1,0 +1,252 @@
+(**** GSVerif style proof helper ****)
+
+type timestamp.
+
+type counter_location.
+
+(* In Counter(ch,n), n represents the position of the counter in
+  the channel. *)
+fun CL(channel,nat):counter_location.
+
+type counter_property.
+
+(* Currently, we only consider two types of properties for counters:
+  - Incr: Represents a counter that is is monotenously increasing 
+  - Decr: Represents a counter that is is monotenously decreasing
+
+  In a future release, we could consider other properties like a
+  counter cycling through a sequence of bounded value.
+*)
+
+(* The counter is monotenously increasing *)
+const Incr:counter_property.
+
+(* The counter is decreasingly monotenous *)
+const Decr:counter_property.
+
+(* A counter is a counter location associated to its property. *)
+type counter.
+fun C(counter_location,counter_property):counter.
+
+(*** Events stating properties on a counter ***)
+
+(* Represents the value of a counter *)
+event CounterValue(counter,nat).
+
+(* Indicate that the given bitstring should be the same when the counter is the same. *)
+event SynchCounterContent(counter,nat,bitstring).
+
+def Axioms_counter_Synch() {
+  axiom c:counter, i:nat, x,x':bitstring;
+    event(SynchCounterContent(c,i,x)) && event(SynchCounterContent(c,i,x')) ==> x = x'
+  .
+}
+
+(* Represent the last time this value will be read in the cell and will be updated *)
+event CounterChange(counter,timestamp,nat).
+
+(* Represent the last value in the cell *)
+event CounterLast(counter,timestamp,nat).
+
+def Axioms_counter_Change() {
+  axiom c:counter, i,i':nat, st,st':timestamp;
+    event(CounterChange(c,st,i)) && event(CounterChange(c,st,i')) ==> i = i';
+    event(CounterChange(c,st,i)) && event(CounterChange(c,st',i)) ==> st = st';
+    event(CounterLast(c,st,i)) && event(CounterLast(c,st',i')) ==> i = i' && st = st'
+  .
+
+  axiom cl:counter_location, p:counter_property, st,st':timestamp, i,i':nat, x:bitstring;
+    let c = C(cl,p) in
+    event(CounterLast(c,st,i)) && event(SynchCounterContent(c,i',x)) ==> (p = Decr && i' >= i) || (p = Incr && i' <= i);
+    let c = C(cl,p) in
+    event(CounterLast(c,st,i)) && event(CounterValue(c,i')) ==> (p = Decr && i' >= i) || (p = Incr && i' <= i);
+    let c = C(cl,p) in
+    event(CounterLast(c,st,i)) && event(CounterChange(c,st',i')) ==> (p = Decr && i' >= i) || (p = Incr && i' <= i)
+  [fullSat].
+}
+
+(** Represent two values of a counter that where read successively in a sequential process. When the counter 
+  c is increasing, i.e. we will have for all event CounterSequential(c,i,j), i <= j. Conversaly, when the 
+  counter is decreasing, we have i >= j. *)
+event CounterSequential(counter,nat,nat).
+
+def Axioms_counter_Sequential() {
+  axiom cl:counter_location, i,j:nat;
+    let c = C(cl,Incr) in
+    event(CounterSequential(c,i,j)) ==> i <= j;
+
+    let c = C(cl,Decr) in
+    event(CounterSequential(c,i,j)) ==> i >= j
+  [fullSat].
+}
+
+(** Represent two consecutive values of a counter. When the counter c is increasing, i.e. with counter property
+    being Incr, any event CounterInterval(c,i,j) implies i <= j. Conversaly, when the counter is decreasing, we
+    have i >= j. *)
+event CounterInterval(counter,nat,nat).
+
+def Axioms_counter_Interval() {
+  axiom cl:counter_location, p:counter_property, i,j,k,l:nat, st:timestamp, x:bitstring;
+    let c = C(cl,Incr) in
+    event(CounterInterval(c,i,j)) && event(SynchCounterContent(c,k,x)) && i < k ==> j <= k;
+    let c = C(cl,Incr) in
+    event(CounterInterval(c,i,j)) && event(SynchCounterContent(c,k,x)) && k < j ==> k <= i;
+    let c = C(cl,Decr) in
+    event(CounterInterval(c,i,j)) && event(SynchCounterContent(c,k,x)) && k > j ==> k >= i;
+    let c = C(cl,Decr) in
+    event(CounterInterval(c,i,j)) && event(SynchCounterContent(c,k,x)) && k < j ==> k <= i;
+
+    let c = C(cl,Incr) in
+    event(CounterInterval(c,i,j)) && event(CounterValue(c,k)) && i < k ==> j <= k;
+    let c = C(cl,Incr) in
+    event(CounterInterval(c,i,j)) && event(CounterValue(c,k)) && k < j ==> k <= i;
+    let c = C(cl,Decr) in
+    event(CounterInterval(c,i,j)) && event(CounterValue(c,k)) && k > j ==> k >= i;
+    let c = C(cl,Decr) in
+    event(CounterInterval(c,i,j)) && event(CounterValue(c,k)) && k < j ==> k <= i;
+
+    let c = C(cl,Incr) in
+    event(CounterInterval(c,i,j)) && event(CounterChange(c,st,k)) && i < k ==> j <= k;
+    let c = C(cl,Incr) in
+    event(CounterInterval(c,i,j)) && event(CounterChange(c,st,k)) && k < j ==> k <= i;
+    let c = C(cl,Decr) in
+    event(CounterInterval(c,i,j)) && event(CounterChange(c,st,k)) && k > j ==> k >= i;
+    let c = C(cl,Decr) in
+    event(CounterInterval(c,i,j)) && event(CounterChange(c,st,k)) && k < j ==> k <= i;
+
+    let c = C(cl,Incr) in
+    event(CounterInterval(c,i,j)) && event(CounterInterval(c,k,l)) && j <= l ==> 
+      (j = l && i = k) || j <= k;
+
+    let c = C(cl,Incr) in
+    event(CounterInterval(c,i,j)) && event(CounterInterval(c,k,l)) && i <= k ==> 
+      (j = l && i = k) || j <= k
+  [fullSat].
+}
+
+(*** Relations between two counters ***)
+
+(* ImpliesChanges(c1,c2,i1,i2) represents that c1 changes then c2 changes.*)
+event ImpliesChanges(counter,counter,nat,nat).
+
+(* EquivalentChanges(c1,c2,i1,j2) represents that c1 changes if and only if c2 changes *)
+event EquivalentChanges(counter,counter,nat,nat).
+
+def Axioms_counter_Changes() {
+  axiom cl1,cl2:counter_location, p1,p2:counter_property, i1,i2,i1',i2':nat;
+    let c1 = C(cl1,Incr) in let c2 = C(cl2,Incr) in
+    event(ImpliesChanges(c1,c2,i1,i2)) && event(ImpliesChanges(c1,c2,i1',i2')) && i1 < i1' ==> i2 < i2';
+
+    let c1 = C(cl1,Incr) in let c2 = C(cl2,Incr) in
+    event(EquivalentChanges(c1,c2,i1,i2)) && event(EquivalentChanges(c1,c2,i1',i2')) && i1 <= i1' ==> i2 <= i2';
+    let c1 = C(cl1,Incr) in let c2 = C(cl2,Incr) in
+    event(EquivalentChanges(c1,c2,i1,i2)) && event(EquivalentChanges(c1,c2,i1',i2')) && i1 >= i1' ==> i2 >= i2';
+    let c1 = C(cl1,Incr) in let c2 = C(cl2,Incr) in
+    event(EquivalentChanges(c1,c2,i1,i2)) && event(EquivalentChanges(c1,c2,i1',i2')) && i2 <= i2' ==> i1 <= i1';
+    let c1 = C(cl1,Incr) in let c2 = C(cl2,Incr) in
+    event(EquivalentChanges(c1,c2,i1,i2)) && event(EquivalentChanges(c1,c2,i1',i2')) && i2 >= i2' ==> i1 >= i1';
+    let c1 = C(cl1,Incr) in let c2 = C(cl2,Incr) in
+    event(EquivalentChanges(c1,c2,i1,i2)) && event(EquivalentChanges(c1,c2,i1,i2')) ==> i2 = i2'
+  [fullSat].
+}
+
+(*** Relations between counters and tables ***)
+
+(* Table_id can be seen as an identifier for a subset of possible entries of a table. *)
+type table_id.
+
+(* RetrievedEntry(tid,c,i,j) reprents a subset of entries tid locked under a counter c.
+  Moreover, an entry has been retrieved through a "get" while the value of the counter c is j and 
+  that has entry while the value of c was i.  *)
+event RetrievedEntry(table_id,counter,nat,nat).
+
+def Axioms_counter_Tables() {
+  axiom tid:table_id, c:counter, i,j:nat;
+    event(RetrievedEntry(tid,c,i,j))  ==> i <= j
+  [fullSat]
+  .
+}
+
+(*** Subterm predicate ***)
+
+fun hash(bitstring):bitstring.
+
+(* We currently use a much weaker version of the subterm predicate as ProVerif is still
+  very limited with the usage of subterm predicate in axioms/lemmas/restrictions/queries. *)
+
+pred is_subterm(bitstring,bitstring).
+
+clauses 
+  forall x,y:bitstring; is_subterm(x,hash((y,x)));
+  forall x,y:bitstring; is_subterm(x,x);
+  forall x,y,z:bitstring; is_subterm(x,y) -> is_subterm(x,hash((y,z)))
+.
+
+(* TermFreshlyCreated(c,i,x) represents the fresh creation of term x when the value of c is i *)
+event TermFreshlyCreated(counter,nat,bitstring).
+
+(* TermReceived(c,i,x) represents the input of term x when the value of c is i *)
+event TermReceived(counter,nat,bitstring).
+
+(* We do not have a generic version of axiom here. In the future release of GSVerif, 
+   the events will contain arguments related to the position of the event in the process. *)
+
+def Axiom_Freshness() {
+  axiom c:counter, i,j:nat, x,y:bitstring;
+    event(TermFreshlyCreated(c,i,x)) && event(TermReceived(c,j,y)) && is_subterm(x,y) ==> i < j
+  .
+}
+
+(*** Precise Input ***)
+
+event PreciseInput(timestamp,bitstring).
+
+def GSVerif_Axiom_PreciseInput() {
+  axiom ts:timestamp, x,y:bitstring;
+    event(PreciseInput(ts,x)) && event(PreciseInput(ts,y)) ==> x = y
+  .
+}
+
+(*** All axioms ***)
+
+def Axioms_GSVerif() {
+  expand Axioms_counter_Synch().
+  expand Axioms_counter_Change().
+  expand Axioms_counter_Sequential().
+  expand Axioms_counter_Interval().
+  expand Axioms_counter_Changes().
+  expand Axioms_counter_Tables().
+  expand Axiom_Freshness().
+}
+
+(*** Functions ***)
+
+letfun PH_counter_change(c:counter,i:nat) =
+  new st[]:timestamp; event CounterChange(c,st,i); ().
+
+letfun PH_counter_last_value(c:counter,i:nat) =
+  new st[]:timestamp; event CounterLast(c,st,i); ().
+
+letfun PH_counter_sequential(c:counter,i:nat,j:nat) = 
+  event CounterSequential(c,i,j); ().
+
+letfun PH_synch_value(c:counter,i:nat,x:bitstring) =
+  event SynchCounterContent(c,i,x); ().
+
+letfun PH_term_received(c:counter,i:nat,x:bitstring) = 
+  event TermReceived(c,i,x); ().
+
+letfun PH_term_freshly_created(c:counter,i:nat,x:bitstring) = 
+  event TermFreshlyCreated(c,i,x); ().
+
+letfun PH_interval_value(c:counter,i,j:nat) =
+  event CounterInterval(c,i,j); ().
+
+letfun PH_implies_changes(c1,c2:counter,i1,i2:nat) =
+  event ImpliesChanges(c1,c2,i1,i2); ().
+
+letfun PH_retrieved_entry(tid:table_id,c:counter,i,i':nat) = 
+  event RetrievedEntry(tid,c,i,i'); ().
+
+letfun PH_precise_input(x:bitstring) = 
+  new ts[]:timestamp; event PreciseInput(ts,x); ().

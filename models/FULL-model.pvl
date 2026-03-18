@@ -1,0 +1,32 @@
+(* -lib ../params/params-all-comp.pvl *)
+(* -lib ../params/switches.pvl *)
+(* -lib ../libs/gsverif_library.pvl *)
+(* -lib ../libs/crypto.pvl *)
+(* -lib ../libs/format.pvl*)
+(* -lib ../libs/proof_helpers.pvl *)
+(* -lib ../models/DR-functions.pvl *)
+(* -lib ../models/PQXDH-model.pvl *)
+
+(*************************************************************
+ *                                                           *
+ *  Automated formal analysis of Signal’s Double Ratchet:    *
+ *    attacks, fixes and security proofs                     *
+ *                                                           *
+ *  Vincent Cheval, Charlie Jacomme, and Jessica Richards    *
+ *                                                           *
+ *  IEEE Symposium on Security and Privacy 2026              *
+ *                                                           *
+ *************************************************************)
+
+let SystemFull =
+  ! in(att,c:id); Launch_pqxdh_client(c)
+  | ! dh_attacks 
+  | ! kem_attacks 
+.
+
+
+let SystemFullReach =
+   in(att, idA: id); Launch_pqxdh_client(idA)
+  |in(att, idB: id); Launch_pqxdh_client(idB)
+
+.

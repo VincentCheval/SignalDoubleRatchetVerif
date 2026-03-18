@@ -1,0 +1,427 @@
+(* WARNING: File generated from lemmas.m4.pvl *)
+(* -lib ../params/params-all-comp.pvl *)
+(* -lib crypto.pvl *)
+(* -lib gsverif_library.pvl *)
+(* -lib format.pvl *)
+
+
+
+
+(* This lemmas shows all keys secret, but in a no compromise setting *)
+def lemmas_secrecy_no_comp() {
+  lemma sif:session_info,dhs:key_pair, dhs_prv:scalar, dhs_pub,dhr:point, rk:root_key, cks:chain_key, ckr:chain_key, hks, nhks, hkr, nhkr:header_key, ns,nr,pn,m_idx,r_idx:nat, rcv_idx,rcv_idx':nat;
+    mess(state_chan(sif),cell(state( KeyPair(dhs_prv,dhs_pub), dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) && attacker( dhs_prv) ==> false;
+    mess(state_chan(sif),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) && attacker( rk) ==> false;
+    mess(state_chan(sif),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) && attacker( cks) ==> cks=none_ck;
+    mess(state_chan(sif),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) && attacker( ckr) ==> ckr=none_ck
+
+  [induction].
+
+}
+
+(* To subsume loops over public knowledge, those lemmas defines the public elements of states. *)
+def lemmas_public_knowledge() {
+  lemma s:session_info, dhs:key_pair, dhs_prv:scalar, dhs_pub,dhr:point, rk:root_key, cks:chain_key, rcv_idx,rcv_idx':nat,ckr:chain_key, hks, nhks, hkr, nhkr:header_key, ns,nr,pn,m_idx,r_idx:nat, i,j:time;
+    mess(state_chan(s),cell(state( dhs, dhr, rk, none_ck, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) ==> 
+      m_idx = 0 && r_idx = 0 && ckr = none_ck && dhr = none_dh && ns = 0 && nr = 0 && pn = 0;
+
+    mess(state_chan(s),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx))  ==> is_nat(ns) && is_nat(nr) && is_nat(pn) && is_nat(m_idx) && is_nat(r_idx);
+
+    mess(state_chan(s),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx))@i ==>
+
+      (event(KnowledgeAtt(dhr))@j && i > j) ||
+
+      (attacker(dhr)@j && i > j);      
+
+    mess(state_chan(s),cell(state( KeyPair(dhs_prv,dhs_pub), dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx))@i ==>
+
+      (event(KnowledgeAtt(dhs_pub))@j && i > j) ||
+
+      (attacker(dhs_pub)@j && i > j)
+
+  [induction].
+
+}
+
+def lemmas_internal_state1() {
+
+  lemma sif:session_info,dhs:key_pair, dhs_prv:scalar, dhs_pub,dhr:point, rk:root_key, cks:chain_key,rcv_idx,rcv_idx':nat, ckr:chain_key, hks, nhks, hkr, nhkr:header_key, 
+    ns,nr,pn,m_idx,r_idx:nat;
+
+    (* Shape of DHs*)
+    mess(state_chan(sif),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) ==>
+      dhs = KeyPair(dhs_prv,SMUL(dhs_prv,G))
+
+      
+
+  [induction]
+
+  .
+
+  lemma sif:session_info,dhs,dhs':key_pair, sd:session_id, idA,idB:id, r:bool, dhr,dhr':point, rk,rk':root_key, cks,cks':chain_key, ckr,ckr':chain_key, hks, hks', nhks, nhks', hkr, hkr', nhkr, nhkr':header_key, 
+    ns,ns',nr,nr',pn,pn',m_idx,r_idx,m_idx',r_idx',rcv_idx,rcv_idx':nat;
+
+    (* Same DHs implies same DHr, RK, r_idx and Pn and header keys *)
+    mess(state_chan(sif),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) &&
+    mess(state_chan(sif),cell(state( dhs, dhr', rk', cks', ckr', ns', nr', pn', hks', nhks', hkr', nhkr'),r_idx',m_idx',rcv_idx')) ==> 
+      dhr = dhr' && r_idx = r_idx' && pn = pn' && rk = rk' && hks = hks' && nhks = nhks' && hkr = hkr' && nhkr = nhkr';
+
+    (* Same DHs and Ns implies same CKs *)
+    mess(state_chan(sif),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) &&
+    mess(state_chan(sif),cell(state( dhs, dhr, rk, cks', ckr', ns, nr', pn', hks', nhks', hkr', nhkr'),r_idx',m_idx',rcv_idx')) ==> 
+      cks = cks';
+
+    (* Same CKs implies same DHs, DHr, Ns, header keys *)
+    mess(state_chan(sif),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) &&
+    mess(state_chan(sif),cell(state( dhs', dhr', rk', cks, ckr', ns', nr', pn', hks', nhks', hkr', nhkr'),r_idx',m_idx',rcv_idx')) ==> 
+      ns = ns' && dhs = dhs' && dhr = dhr' && hks = hks' && nhks = nhks' && hkr = hkr' && nhkr = nhkr';
+
+     (* Same DHs and Nr implies same CKr and rcv_idx *)
+    mess(state_chan(sif),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) &&
+    mess(state_chan(sif),cell(state( dhs, dhr', rk', cks', ckr', ns', nr, pn', hks', nhks', hkr', nhkr'),r_idx,m_idx',rcv_idx')) ==> 
+      ckr = ckr' && rcv_idx = rcv_idx';
+
+
+    (* Same RK implies same DHs, header keys *)
+    mess(state_chan(sif),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) &&
+    mess(state_chan(sif),cell(state( dhs', dhr', rk, cks', ckr', ns', nr', pn', hks', nhks', hkr', nhkr'),r_idx',m_idx',rcv_idx')) ==> 
+      dhs = dhs' && hks = hks' && nhks = nhks' && hkr = hkr' && nhkr = nhkr';
+
+    (* Booleans are booleans *)
+    mess(state_chan(session(sd,r,idA,idB)),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx))
+      ==> r = true || r = false
+
+
+  [induction]
+
+  .
+}
+
+def lemmas_internal_state2() {
+
+  lemma sif:session_info,dhs,dhs':key_pair, dhr,dhr':point, rk,rk':root_key, cks,cks':chain_key, ckr,ckr':chain_key, hks, hks', nhks, nhks', hkr, hkr', nhkr, nhkr':header_key, 
+    ns,ns',nr,nr',pn,pn',m_idx,r_idx,m_idx',r_idx',rcv_idx,rcv_idx':nat;
+
+    (* Same r_idx implies same DHs and header keys *)
+    mess(state_chan(sif),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) &&
+    mess(state_chan(sif),cell(state( dhs', dhr', rk', cks', ckr', ns', nr', pn', hks', nhks', hkr', nhkr'),r_idx,m_idx',rcv_idx')) ==> 
+      dhs = dhs' && dhr = dhr' && rk = rk' && hks = hks' && nhks = nhks' && hkr = hkr' && nhkr = nhkr';
+
+    (* Same m_idx implies same everything *)
+    mess(state_chan(sif),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) &&
+    mess(state_chan(sif),cell(state( dhs', dhr', rk', cks', ckr', ns', nr', pn', hks', nhks', hkr', nhkr'),r_idx',m_idx,rcv_idx')) ==> 
+      dhs = dhs' && dhr = dhr' && rk = rk' && r_idx = r_idx' && cks = cks' && ckr = ckr' && ns = ns' && nr = nr' && pn = pn' && hks = hks' && nhks = nhks' && hkr = hkr' && nhkr = nhkr'
+
+
+  [induction]
+
+  . 
+}
+
+def lemmas_internal_state3() {
+  lemma sif:session_info, dhs,dhs':key_pair, dhr,dhr':point, rk,rk':root_key, cks,cks':chain_key, ckr,ckr':chain_key, hks, hks', nhks, nhks', hkr, hkr', nhkr, nhkr':header_key, 
+    ns,ns',nr,nr',pn,pn',m_idx,r_idx,m_idx',r_idx',rcv_idx,rcv_idx':nat;
+    (* Same CKr implies same DHs and Nr, header keys *)
+    mess(state_chan(sif),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) &&
+    mess(state_chan(sif),cell(state( dhs', dhr', rk', cks', ckr, ns', nr', pn', hks', nhks', hkr', nhkr'),r_idx',m_idx',rcv_idx')) ==> 
+      nr = nr' && dhs = dhs' && hks = hks' && nhks = nhks' && hkr = hkr' && nhkr = nhkr'
+
+  [induction]
+
+  .
+
+  lemma sinfo:session_info, dhs,dhs':scalar, dhp,dhp':point, r_idx:nat;
+    event(HonestDH(sinfo,dhs,dhp,r_idx)) && event(HonestDH(sinfo,dhs',dhp',r_idx))  ==> dhp=dhp' && dhs=dhs'
+  .
+}
+
+
+def lemmas_session_state_invariants() {
+
+  lemma  sd,sd':session_id, s,s':bool, idA,idA',idB,idB':id,dhs,dhs':key_pair, dhr,dhr',p,p':point, rk,rk':root_key, cks,cks':chain_key, ckr,ckr',CK:chain_key, hks, hks', nhks, nhks', hkr, hkr', nhkr, nhkr':header_key, ns,ns':nat, nr,nr':nat, pn,pn':nat,r_idx,m_idx,r_idx',m_idx',rcv_idx,rcv_idx':nat;
+
+    (* Same rk implies same session and r_idx *)
+    mess(state_chan(session(sd,s,idA,idB)),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) &&
+    mess(state_chan(session(sd',s',idA',idB')),cell(state( dhs', dhr', rk, cks', ckr', ns', nr', pn', hks', nhks', hkr', nhkr'),r_idx',m_idx',rcv_idx')) ==>
+      sd=sd' && s=s' && idA'=idA && idB'=idB && r_idx=r_idx'  ; (* as there is a one off double jump for root keys, the two opposite chains are never syncrhonized *)
+
+    (* One off RK implies partnered session and one off r_idx *)
+    mess(state_chan(session(sd,s,idA,idB)),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) && 
+    mess(state_chan(session(sd',s',idA',idB')),cell(state( dhs', dhr', kdf_rk_root(rk,p), cks', ckr', ns', nr', pn', hks', nhks', hkr', nhkr'),r_idx',m_idx',rcv_idx')) ==>
+      sd=sd' && s <> s' && idA'=idB && idB'=idA && (r_idx'=r_idx+1) ; (* as there is a one off double jump for root keys, the two opposite chains are never syncrhonized *)
+
+
+    (*  A cks derived from rk implies same session two r_idx epocs later *)
+    mess(state_chan(session(sd,s,idA,idB)),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) && 
+    mess(state_chan(session(sd',s',idA',idB')),cell(state( dhs', dhr', rk', kdf_rk_chain(kdf_rk_root(rk,p),p'), ckr', ns', nr', pn', hks', nhks', hkr', nhkr'),r_idx',m_idx',rcv_idx')) ==>
+      sd=sd' && s = s' && ( (idA'=idA && idB'=idB)) && r_idx+2=r_idx' && ns'=0 ;
+
+    (* A ckr derived from rk implies same session  two r_idx epocs later  *)
+    mess(state_chan(session(sd,s,idA,idB)),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) && 
+    mess(state_chan(session(sd',s',idA',idB')),cell(state( dhs', dhr', rk', ckr', kdf_rk_chain(rk,p), ns', nr', pn', hks', nhks', hkr', nhkr'),r_idx',m_idx',rcv_idx')) ==>
+      sd=sd' && s = s' && ((idA'=idA && idB'=idB))  && r_idx+2=r_idx' && nr'=0;
+
+    (* Opposite ckr and cks implies partners and one off r_idx epoc *)
+    mess(state_chan(session(sd,s,idA,idB)),cell(state( dhs, dhr, rk, cks, CK, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) && 
+    mess(state_chan(session(sd',s',idA',idB')),cell(state( dhs', dhr', rk', CK, ckr', ns', nr', pn', hks', nhks', hkr', nhkr'),r_idx',m_idx',rcv_idx')) ==> 
+      CK = none_ck
+      ||
+      (sd=sd' && s <> s' && (idA'=idB && idB'=idA) && r_idx=r_idx' +1 && nr=ns')
+
+  [induction]
+
+  .
+
+  lemma sd,sd':session_id, s,s':bool, idA,idA',idB,idB':id,dhs,dhs':key_pair, dhs_prv:scalar, dhs_pub:point, dhr,dhr':point, rk,rk':root_key, cks,cks':chain_key, ckr,ckr',CK:chain_key, hks, hks', nhks, nhks', hkr, hkr', nhkr, nhkr':header_key,  ns,ns':nat, nr,nr':nat, pn,pn':nat,r_idx,m_idx,r_idx',m_idx',rcv_idx,rcv_idx':nat;
+
+    (* Same dhs implies same session *)
+    mess(state_chan(session(sd,s,idA,idB)),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) && 
+    mess(state_chan(session(sd',s',idA',idB')),cell(state( dhs, dhr', rk', cks', ckr', ns', nr', pn', hks', nhks', hkr', nhkr'),r_idx',m_idx',rcv_idx')) ==> 
+      sd=sd' && s=s' && (idA'=idA && idB'=idB) && r_idx=r_idx' ||
+      idA'=idA && s = false && s' = false && r_idx = 0 && r_idx' = 0 && event(ChosenSPK(session(sd,false,idA,idB), dhs)) && event(ChosenSPK(session(sd',false,idA,idB'), dhs)) && sd <> sd'
+    
+    [induction]
+    
+  .
+
+  (* same cks implies same session and same r_idx epoc *)
+  lemma sd,sd':session_id, s,s':bool, idA,idA',idB,idB':id,dhs,dhs':key_pair, dhs_prv:scalar, dhs_pub:point, dhr,dhr':point, rk,rk':root_key, cks,cks':chain_key, ckr,ckr',CK:chain_key, hks, hks', nhks, nhks', hkr, hkr', nhkr, nhkr':header_key,  ns,ns':nat, nr,nr':nat, pn,pn':nat,r_idx,m_idx,r_idx',m_idx',rcv_idx,rcv_idx':nat;
+    mess(state_chan(session(sd,s,idA,idB)),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) && 
+    mess(state_chan(session(sd',s',idA',idB')),cell(state( dhs', dhr', rk', cks, ckr', ns', nr', pn', hks', nhks', hkr', nhkr'),r_idx',m_idx',rcv_idx')) ==>
+      cks = none_ck || (sd=sd' && s=s' && idA'=idA && idB'=idB && r_idx=r_idx' && ns=ns');
+
+    (* Same ckr implies same session and same r_idx epoc *)
+    mess(state_chan(session(sd,s,idA,idB)),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) && 
+    mess(state_chan(session(sd',s',idA',idB')),cell(state( dhs', dhr', rk', cks', ckr, ns', nr', pn', hks', nhks', hkr', nhkr'),r_idx',m_idx',rcv_idx')) ==>
+      ckr = none_ck || (sd=sd' && s=s' && idA'=idA && idB'=idB && r_idx=r_idx' && nr=nr');
+
+    (* One off cks implies same session and same r_idx epoc *)
+    mess(state_chan(session(sd,s,idA,idB)),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) && 
+    mess(state_chan(session(sd',s',idA',idB')),cell(state( dhs', dhr', rk', kdf_ck_chain(cks), ckr', ns', nr', pn', hks', nhks', hkr', nhkr'),r_idx',m_idx',rcv_idx')) ==>
+      sd=sd' && s=s' && idA'=idA && idB'=idB && r_idx=r_idx' && ns'=ns+1 ;
+
+    (* One off cross ck implies same session and same r_idx epoc *)
+    mess(state_chan(session(sd,s,idA,idB)),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) && 
+    mess(state_chan(session(sd',s',idA',idB')),cell(state( dhs', dhr', rk',cks',  kdf_ck_chain(ckr), ns', nr', pn', hks', nhks', hkr', nhkr'),r_idx',m_idx',rcv_idx')) ==>
+    sd=sd' && s = s' && idA'=idA && idB'=idB && r_idx=r_idx' && nr'=nr+1
+    
+    [induction]
+    
+  .
+
+}
+
+
+def lemmas_track_comp() {
+  (* Helping axiom to keep in memory the mess corresponding to compromise, needed to apply the other lemmas *)
+  lemma sd,sd':session_id, s:bool, idA,idA',idB,idB':id,dhs,dhs':key_pair, dhs_prv:scalar, dhs_pub,dhr,dhr',p,p':point, rk,rk':root_key, cks,cks':chain_key, ckr,ckr',CK:chain_key, hks, hks', nhks, nhks', hkr, hkr', nhkr, nhkr':header_key, ns,ns':nat, nr,nr':nat, pn,pn':nat,r_idx,m_idx,r_idx',m_idx',rcv_idx,rcv_idx':nat;
+    event(CompromiseRK(session(sd,s,idA,idB), rk,r_idx)) ==> mess(state_chan(session(sd,s,idA,idB)),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx));
+    event(CompromiseDHs(session(sd,s,idA,idB), dhs_prv,r_idx)) ==> mess(state_chan(session(sd,s,idA,idB)),cell(state( KeyPair(dhs_prv,dhs_pub), dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)); 
+    event(CompromiseCKs(session(sd,s,idA,idB), cks,ns, r_idx)) ==> mess(state_chan(session(sd,s,idA,idB)),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx));
+    event(CompromiseCKr(session(sd,s,idA,idB), ckr,nr,r_idx)) ==> mess(state_chan(session(sd,s,idA,idB)),cell(state(dhs , dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)).
+}
+
+(* -lib ../params/params-all-comp.pvl *)
+(* -lib crypto.pvl *)
+(* -lib gsverif_library.pvl *)
+(* -lib format.pvl *)
+
+
+
+
+(* This lemmas shows all keys secret, but in a no compromise setting *)
+def axioms_secrecy_no_comp() {
+  axiom sif:session_info,dhs:key_pair, dhs_prv:scalar, dhs_pub,dhr:point, rk:root_key, cks:chain_key, ckr:chain_key, hks, nhks, hkr, nhkr:header_key, ns,nr,pn,m_idx,r_idx:nat, rcv_idx,rcv_idx':nat;
+    mess(state_chan(sif),cell(state( KeyPair(dhs_prv,dhs_pub), dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) && attacker( dhs_prv) ==> false;
+    mess(state_chan(sif),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) && attacker( rk) ==> false;
+    mess(state_chan(sif),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) && attacker( cks) ==> cks=none_ck;
+    mess(state_chan(sif),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) && attacker( ckr) ==> ckr=none_ck
+
+   [fullSat].
+
+}
+
+(* To subsume loops over public knowledge, those lemmas defines the public elements of states. *)
+def axioms_public_knowledge() {
+  axiom s:session_info, dhs:key_pair, dhs_prv:scalar, dhs_pub,dhr:point, rk:root_key, cks:chain_key, rcv_idx,rcv_idx':nat,ckr:chain_key, hks, nhks, hkr, nhkr:header_key, ns,nr,pn,m_idx,r_idx:nat, i,j:time;
+    mess(state_chan(s),cell(state( dhs, dhr, rk, none_ck, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) ==> 
+      m_idx = 0 && r_idx = 0 && ckr = none_ck && dhr = none_dh && ns = 0 && nr = 0 && pn = 0;
+
+    mess(state_chan(s),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx))  ==> is_nat(ns) && is_nat(nr) && is_nat(pn) && is_nat(m_idx) && is_nat(r_idx);
+
+    mess(state_chan(s),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx))@i ==>
+
+      (attacker(dhr)@j && i > j);      
+
+    mess(state_chan(s),cell(state( KeyPair(dhs_prv,dhs_pub), dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx))@i ==>
+
+      (attacker(dhs_pub)@j && i > j)
+
+   [fullSat].
+
+}
+
+def axioms_internal_state1() {
+
+  axiom sif:session_info,dhs:key_pair, dhs_prv:scalar, dhs_pub,dhr:point, rk:root_key, cks:chain_key,rcv_idx,rcv_idx':nat, ckr:chain_key, hks, nhks, hkr, nhkr:header_key, 
+    ns,nr,pn,m_idx,r_idx:nat;
+
+    (* Shape of DHs*)
+    mess(state_chan(sif),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) ==>
+      dhs = KeyPair(dhs_prv,SMUL(dhs_prv,G))
+
+      
+
+  .
+
+  axiom sif:session_info,dhs,dhs':key_pair, sd:session_id, idA,idB:id, r:bool, dhr,dhr':point, rk,rk':root_key, cks,cks':chain_key, ckr,ckr':chain_key, hks, hks', nhks, nhks', hkr, hkr', nhkr, nhkr':header_key, 
+    ns,ns',nr,nr',pn,pn',m_idx,r_idx,m_idx',r_idx',rcv_idx,rcv_idx':nat;
+
+    (* Same DHs implies same DHr, RK, r_idx and Pn and header keys *)
+    mess(state_chan(sif),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) &&
+    mess(state_chan(sif),cell(state( dhs, dhr', rk', cks', ckr', ns', nr', pn', hks', nhks', hkr', nhkr'),r_idx',m_idx',rcv_idx')) ==> 
+      dhr = dhr' && r_idx = r_idx' && pn = pn' && rk = rk' && hks = hks' && nhks = nhks' && hkr = hkr' && nhkr = nhkr';
+
+    (* Same DHs and Ns implies same CKs *)
+    mess(state_chan(sif),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) &&
+    mess(state_chan(sif),cell(state( dhs, dhr, rk, cks', ckr', ns, nr', pn', hks', nhks', hkr', nhkr'),r_idx',m_idx',rcv_idx')) ==> 
+      cks = cks';
+
+    (* Same CKs implies same DHs, DHr, Ns, header keys *)
+    mess(state_chan(sif),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) &&
+    mess(state_chan(sif),cell(state( dhs', dhr', rk', cks, ckr', ns', nr', pn', hks', nhks', hkr', nhkr'),r_idx',m_idx',rcv_idx')) ==> 
+      ns = ns' && dhs = dhs' && dhr = dhr' && hks = hks' && nhks = nhks' && hkr = hkr' && nhkr = nhkr';
+
+     (* Same DHs and Nr implies same CKr and rcv_idx *)
+    mess(state_chan(sif),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) &&
+    mess(state_chan(sif),cell(state( dhs, dhr', rk', cks', ckr', ns', nr, pn', hks', nhks', hkr', nhkr'),r_idx,m_idx',rcv_idx')) ==> 
+      ckr = ckr' && rcv_idx = rcv_idx';
+
+
+    (* Same RK implies same DHs, header keys *)
+    mess(state_chan(sif),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) &&
+    mess(state_chan(sif),cell(state( dhs', dhr', rk, cks', ckr', ns', nr', pn', hks', nhks', hkr', nhkr'),r_idx',m_idx',rcv_idx')) ==> 
+      dhs = dhs' && hks = hks' && nhks = nhks' && hkr = hkr' && nhkr = nhkr';
+
+    (* Booleans are booleans *)
+    mess(state_chan(session(sd,r,idA,idB)),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx))
+      ==> r = true || r = false
+
+
+  .
+}
+
+def axioms_internal_state2() {
+
+  axiom sif:session_info,dhs,dhs':key_pair, dhr,dhr':point, rk,rk':root_key, cks,cks':chain_key, ckr,ckr':chain_key, hks, hks', nhks, nhks', hkr, hkr', nhkr, nhkr':header_key, 
+    ns,ns',nr,nr',pn,pn',m_idx,r_idx,m_idx',r_idx',rcv_idx,rcv_idx':nat;
+
+    (* Same r_idx implies same DHs and header keys *)
+    mess(state_chan(sif),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) &&
+    mess(state_chan(sif),cell(state( dhs', dhr', rk', cks', ckr', ns', nr', pn', hks', nhks', hkr', nhkr'),r_idx,m_idx',rcv_idx')) ==> 
+      dhs = dhs' && dhr = dhr' && rk = rk' && hks = hks' && nhks = nhks' && hkr = hkr' && nhkr = nhkr';
+
+    (* Same m_idx implies same everything *)
+    mess(state_chan(sif),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) &&
+    mess(state_chan(sif),cell(state( dhs', dhr', rk', cks', ckr', ns', nr', pn', hks', nhks', hkr', nhkr'),r_idx',m_idx,rcv_idx')) ==> 
+      dhs = dhs' && dhr = dhr' && rk = rk' && r_idx = r_idx' && cks = cks' && ckr = ckr' && ns = ns' && nr = nr' && pn = pn' && hks = hks' && nhks = nhks' && hkr = hkr' && nhkr = nhkr'
+
+
+  . 
+}
+
+def axioms_internal_state3() {
+  axiom sif:session_info, dhs,dhs':key_pair, dhr,dhr':point, rk,rk':root_key, cks,cks':chain_key, ckr,ckr':chain_key, hks, hks', nhks, nhks', hkr, hkr', nhkr, nhkr':header_key, 
+    ns,ns',nr,nr',pn,pn',m_idx,r_idx,m_idx',r_idx',rcv_idx,rcv_idx':nat;
+    (* Same CKr implies same DHs and Nr, header keys *)
+    mess(state_chan(sif),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) &&
+    mess(state_chan(sif),cell(state( dhs', dhr', rk', cks', ckr, ns', nr', pn', hks', nhks', hkr', nhkr'),r_idx',m_idx',rcv_idx')) ==> 
+      nr = nr' && dhs = dhs' && hks = hks' && nhks = nhks' && hkr = hkr' && nhkr = nhkr'
+
+  .
+
+  axiom sinfo:session_info, dhs,dhs':scalar, dhp,dhp':point, r_idx:nat;
+    event(HonestDH(sinfo,dhs,dhp,r_idx)) && event(HonestDH(sinfo,dhs',dhp',r_idx))  ==> dhp=dhp' && dhs=dhs'
+  .
+}
+
+
+def axioms_session_state_invariants() {
+
+  axiom  sd,sd':session_id, s,s':bool, idA,idA',idB,idB':id,dhs,dhs':key_pair, dhr,dhr',p,p':point, rk,rk':root_key, cks,cks':chain_key, ckr,ckr',CK:chain_key, hks, hks', nhks, nhks', hkr, hkr', nhkr, nhkr':header_key, ns,ns':nat, nr,nr':nat, pn,pn':nat,r_idx,m_idx,r_idx',m_idx',rcv_idx,rcv_idx':nat;
+
+    (* Same rk implies same session and r_idx *)
+    mess(state_chan(session(sd,s,idA,idB)),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) &&
+    mess(state_chan(session(sd',s',idA',idB')),cell(state( dhs', dhr', rk, cks', ckr', ns', nr', pn', hks', nhks', hkr', nhkr'),r_idx',m_idx',rcv_idx')) ==>
+      sd=sd' && s=s' && idA'=idA && idB'=idB && r_idx=r_idx'  ; (* as there is a one off double jump for root keys, the two opposite chains are never syncrhonized *)
+
+    (* One off RK implies partnered session and one off r_idx *)
+    mess(state_chan(session(sd,s,idA,idB)),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) && 
+    mess(state_chan(session(sd',s',idA',idB')),cell(state( dhs', dhr', kdf_rk_root(rk,p), cks', ckr', ns', nr', pn', hks', nhks', hkr', nhkr'),r_idx',m_idx',rcv_idx')) ==>
+      sd=sd' && s <> s' && idA'=idB && idB'=idA && (r_idx'=r_idx+1) ; (* as there is a one off double jump for root keys, the two opposite chains are never syncrhonized *)
+
+
+    (*  A cks derived from rk implies same session two r_idx epocs later *)
+    mess(state_chan(session(sd,s,idA,idB)),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) && 
+    mess(state_chan(session(sd',s',idA',idB')),cell(state( dhs', dhr', rk', kdf_rk_chain(kdf_rk_root(rk,p),p'), ckr', ns', nr', pn', hks', nhks', hkr', nhkr'),r_idx',m_idx',rcv_idx')) ==>
+      sd=sd' && s = s' && ( (idA'=idA && idB'=idB)) && r_idx+2=r_idx' && ns'=0 ;
+
+    (* A ckr derived from rk implies same session  two r_idx epocs later  *)
+    mess(state_chan(session(sd,s,idA,idB)),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) && 
+    mess(state_chan(session(sd',s',idA',idB')),cell(state( dhs', dhr', rk', ckr', kdf_rk_chain(rk,p), ns', nr', pn', hks', nhks', hkr', nhkr'),r_idx',m_idx',rcv_idx')) ==>
+      sd=sd' && s = s' && ((idA'=idA && idB'=idB))  && r_idx+2=r_idx' && nr'=0;
+
+    (* Opposite ckr and cks implies partners and one off r_idx epoc *)
+    mess(state_chan(session(sd,s,idA,idB)),cell(state( dhs, dhr, rk, cks, CK, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) && 
+    mess(state_chan(session(sd',s',idA',idB')),cell(state( dhs', dhr', rk', CK, ckr', ns', nr', pn', hks', nhks', hkr', nhkr'),r_idx',m_idx',rcv_idx')) ==> 
+      CK = none_ck
+      ||
+      (sd=sd' && s <> s' && (idA'=idB && idB'=idA) && r_idx=r_idx' +1 && nr=ns')
+
+  .
+
+  axiom sd,sd':session_id, s,s':bool, idA,idA',idB,idB':id,dhs,dhs':key_pair, dhs_prv:scalar, dhs_pub:point, dhr,dhr':point, rk,rk':root_key, cks,cks':chain_key, ckr,ckr',CK:chain_key, hks, hks', nhks, nhks', hkr, hkr', nhkr, nhkr':header_key,  ns,ns':nat, nr,nr':nat, pn,pn':nat,r_idx,m_idx,r_idx',m_idx',rcv_idx,rcv_idx':nat;
+
+    (* Same dhs implies same session *)
+    mess(state_chan(session(sd,s,idA,idB)),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) && 
+    mess(state_chan(session(sd',s',idA',idB')),cell(state( dhs, dhr', rk', cks', ckr', ns', nr', pn', hks', nhks', hkr', nhkr'),r_idx',m_idx',rcv_idx')) ==> 
+      sd=sd' && s=s' && (idA'=idA && idB'=idB) && r_idx=r_idx' ||
+      idA'=idA && s = false && s' = false && r_idx = 0 && r_idx' = 0 && event(ChosenSPK(session(sd,false,idA,idB), dhs)) && event(ChosenSPK(session(sd',false,idA,idB'), dhs)) && sd <> sd'
+    
+  .
+
+  (* same cks implies same session and same r_idx epoc *)
+  axiom sd,sd':session_id, s,s':bool, idA,idA',idB,idB':id,dhs,dhs':key_pair, dhs_prv:scalar, dhs_pub:point, dhr,dhr':point, rk,rk':root_key, cks,cks':chain_key, ckr,ckr',CK:chain_key, hks, hks', nhks, nhks', hkr, hkr', nhkr, nhkr':header_key,  ns,ns':nat, nr,nr':nat, pn,pn':nat,r_idx,m_idx,r_idx',m_idx',rcv_idx,rcv_idx':nat;
+    mess(state_chan(session(sd,s,idA,idB)),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) && 
+    mess(state_chan(session(sd',s',idA',idB')),cell(state( dhs', dhr', rk', cks, ckr', ns', nr', pn', hks', nhks', hkr', nhkr'),r_idx',m_idx',rcv_idx')) ==>
+      cks = none_ck || (sd=sd' && s=s' && idA'=idA && idB'=idB && r_idx=r_idx' && ns=ns');
+
+    (* Same ckr implies same session and same r_idx epoc *)
+    mess(state_chan(session(sd,s,idA,idB)),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) && 
+    mess(state_chan(session(sd',s',idA',idB')),cell(state( dhs', dhr', rk', cks', ckr, ns', nr', pn', hks', nhks', hkr', nhkr'),r_idx',m_idx',rcv_idx')) ==>
+      ckr = none_ck || (sd=sd' && s=s' && idA'=idA && idB'=idB && r_idx=r_idx' && nr=nr');
+
+    (* One off cks implies same session and same r_idx epoc *)
+    mess(state_chan(session(sd,s,idA,idB)),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) && 
+    mess(state_chan(session(sd',s',idA',idB')),cell(state( dhs', dhr', rk', kdf_ck_chain(cks), ckr', ns', nr', pn', hks', nhks', hkr', nhkr'),r_idx',m_idx',rcv_idx')) ==>
+      sd=sd' && s=s' && idA'=idA && idB'=idB && r_idx=r_idx' && ns'=ns+1 ;
+
+    (* One off cross ck implies same session and same r_idx epoc *)
+    mess(state_chan(session(sd,s,idA,idB)),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) && 
+    mess(state_chan(session(sd',s',idA',idB')),cell(state( dhs', dhr', rk',cks',  kdf_ck_chain(ckr), ns', nr', pn', hks', nhks', hkr', nhkr'),r_idx',m_idx',rcv_idx')) ==>
+    sd=sd' && s = s' && idA'=idA && idB'=idB && r_idx=r_idx' && nr'=nr+1
+    
+  .
+
+}
+
+
+def axioms_track_comp() {
+  (* Helping axiom to keep in memory the mess corresponding to compromise, needed to apply the other lemmas *)
+  axiom sd,sd':session_id, s:bool, idA,idA',idB,idB':id,dhs,dhs':key_pair, dhs_prv:scalar, dhs_pub,dhr,dhr',p,p':point, rk,rk':root_key, cks,cks':chain_key, ckr,ckr',CK:chain_key, hks, hks', nhks, nhks', hkr, hkr', nhkr, nhkr':header_key, ns,ns':nat, nr,nr':nat, pn,pn':nat,r_idx,m_idx,r_idx',m_idx',rcv_idx,rcv_idx':nat;
+    event(CompromiseRK(session(sd,s,idA,idB), rk,r_idx)) ==> mess(state_chan(session(sd,s,idA,idB)),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx));
+    event(CompromiseDHs(session(sd,s,idA,idB), dhs_prv,r_idx)) ==> mess(state_chan(session(sd,s,idA,idB)),cell(state( KeyPair(dhs_prv,dhs_pub), dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)); 
+    event(CompromiseCKs(session(sd,s,idA,idB), cks,ns, r_idx)) ==> mess(state_chan(session(sd,s,idA,idB)),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx));
+    event(CompromiseCKr(session(sd,s,idA,idB), ckr,nr,r_idx)) ==> mess(state_chan(session(sd,s,idA,idB)),cell(state(dhs , dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)).
+}
+

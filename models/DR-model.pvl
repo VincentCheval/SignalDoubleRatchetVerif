@@ -1,0 +1,78 @@
+(* -lib ../params/params-all-comp.pvl *)
+(* -lib ../params/switches.pvl *)
+(* -lib ../libs/gsverif_library.pvl *)
+(* -lib ../libs/crypto.pvl *)
+(* -lib ../libs/format.pvl*)
+(* -lib ../libs/proof_helpers.pvl *)
+(* -lib ../models/DR-functions.pvl*)
+
+(*************************************************************
+ *                                                           *
+ *  Automated formal analysis of Signal’s Double Ratchet:    *
+ *    attacks, fixes and security proofs                     *
+ *                                                           *
+ *  Vincent Cheval, Charlie Jacomme, and Jessica Richards    *
+ *                                                           *
+ *  IEEE Symposium on Security and Privacy 2026              *
+ *                                                           *
+ *************************************************************)
+
+(* Values inherited from PQXDH 
+
+Extracted from Sec. 7.1: (combination with PQXDH)
+-------
+The following outputs from PQXDH are used by the Double Ratchet:
+
+    The SK output from PQXDH becomes the SK input to Double Ratchet initialization (see Section 3.3).
+
+    The AD output from PQXDH becomes the AD input to Double Ratchet encryption and decryption (see Section 3.4 and Section 3.5).
+
+    Bob's signed prekey from PQXDH (SPKB) becomes Bob's initial ratchet public key (and corresponding key pair) for Double Ratchet initialization.
+*)
+
+fun sid_of_rk(root_key): session_id.
+
+(** Function to generate the associated data. *)
+fun idPair(id,id) : associated_data. 
+
+
+
+let genSPKs = 
+  if allow_same_SPK then 
+  !
+  in(att,r:id);
+  let s = generate_dh() in
+  insert SPKs(r, s)
+.
+
+
+let System = 
+   genSPKs | 
+  !
+    (*** Sanity ***)  let () = OneReplication() in
+  in(att, (idA:id, idB:id)); (* we let the attacker decide who talks with who *)
+  in(att, (HE:bool, shared_hk:header_key, shared_nhk:header_key)); (* Attacker decides if headers are encrypted *) 
+  let is_HE = if allow_HE then HE else false in
+  event Using_HE(is_HE);
+    (***) let () = PH_precise_input((idA, idB)) in
+
+  let bob_dh_key_pair = (* From PQXDH: Pair of keys that is magically authenticated with Alice *)
+    if allow_same_SPK 
+    then (get SPKs(=idB, bob_dh_key_pair) in bob_dh_key_pair)
+    else generate_dh() 
+  in   
+
+  new SK:root_key; (* From PQXDH: Magically shared root key *) 
+  let s_id = sid_of_rk(SK) in
+
+  event ChosenSPK(session(s_id,false,idB,idA), bob_dh_key_pair);
+
+  let AD = idPair(idA,idB) in 
+
+  let KeyPair(_,bob_dh_public_key) = bob_dh_key_pair in
+  out(att,bob_dh_public_key);
+  event KnowledgeAtt(bob_dh_public_key);
+
+    AliceDoubleRatchet(session(s_id,true,idA,idB), SK, bob_dh_public_key, shared_hk, shared_nhk, AD, is_HE)
+  | BobDoubleRatchet(session(s_id,false,idB,idA), SK,  bob_dh_key_pair, shared_hk, shared_nhk, AD, is_HE)
+.

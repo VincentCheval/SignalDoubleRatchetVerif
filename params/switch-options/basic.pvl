@@ -1,0 +1,4 @@
+letfun allow_HE = false.
+letfun allow_DHs_param = false.
+letfun allow_same_SPK = false.
+letfun fixed_version = true.

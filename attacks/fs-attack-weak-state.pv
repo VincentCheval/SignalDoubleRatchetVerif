@@ -1,0 +1,67 @@
+(* -lib ../params/params-all-comp.pvl *)
+(* -lib ../params/switches.pvl *)
+(* -lib ../libs/gsverif_library.pvl *)
+(* -lib ../libs/crypto.pvl *)
+(* -lib ../libs/format.pvl*)
+(* -lib ../libs/proof_helpers.pvl *)
+(* -lib ../models/DR-functions.pvl *)
+(* -lib ../libs/lemmas.pvl *)
+(* -lib ../models/PQXDH-model.pvl *)
+(* -lib ../models/FULL-model.pvl *)
+
+(*************************************************************
+ *                                                           *
+ *  Automated formal analysis of Signal’s Double Ratchet:    *
+ *    attacks, fixes and security proofs                     *
+ *                                                           *
+ *  Vincent Cheval, Charlie Jacomme, and Jessica Richards    *
+ *                                                           *
+ *  IEEE Symposium on Security and Privacy 2026              *
+ *                                                           *
+ *************************************************************)
+
+set preciseActions = true. 
+set reconstructTrace = true.
+set preciseActions = true.
+set nounifIgnoreAFewTimes = auto.
+noselect z:scalar; attacker(SMUL(z,G)) / 30000. 
+select sif:session_info, x:bitstring; mess(state_chan( *sif), *x) / 30000.
+
+expand Axioms_GSVerif().
+expand axioms_public_knowledge(). 
+
+
+(* PQXDH attacks are disallowed *)
+restriction i:id, p:point, k:kempub;
+  event(BrokenKEM) ==> false ;
+  event(BrokenDH) ==> false;
+  event(CompromiseIK(i)) ==> false;
+  event(CompromiseSPK(i,p)) ==> false;
+  event(CompromiseOPK(i,p)) ==> false;
+  event(CompromisePQPK(i,k)) ==> false
+.
+
+const idA, idB: id.
+
+(* Restrictions to help generate the attack trace *)
+restriction id1,id2:id, s:session_id, l,m_idx,r_idx:nat, r:bool;
+  event(Sanity(state_chan(session(s,r,id1,id2)),l,m_idx,r_idx)) ==> 
+    (r,id1,id2) = (true,idA,idB) || (r,id1,id2) = (false,idB,idA)
+.
+
+restriction s:session_id, l,m_idx,r_idx:nat, id1,id2:id;
+  let chA = state_chan(session(s,true,idA,idB)) in
+  event(Sanity(chA,l,m_idx,r_idx)) ==> 
+    (l,m_idx,r_idx) = (0,0,0);
+ let chB = state_chan(session(s,false,idB,idA)) in
+  event(Sanity(chB,l,m_idx,r_idx)) ==> 
+    (l,m_idx,r_idx) = (0,0,0) .
+
+
+(* The attacker can compromise a DHs corresponding to an SPK. Moreover, through this, they gain knowledge of the SPK. *)
+query s:scalar,r:nat,sinfo:session_info;
+ event(CompromiseDHs(sinfo, s,r)) && event(SecretSPKpriv(s)).
+
+query s:scalar; event(SecretSPKpriv(s)) && attacker(s) ==>false. 
+
+process SystemFullReach

@@ -1,0 +1,75 @@
+(* -lib ../params/params-all-comp.pvl *)
+(* -lib crypto.pvl *)
+(* -lib gsverif_library.pvl *)
+(* -lib format.pvl *)
+
+(*************************************************************
+ *                                                           *
+ *  Automated formal analysis of Signal’s Double Ratchet:    *
+ *    attacks, fixes and security proofs                     *
+ *                                                           *
+ *  Vincent Cheval, Charlie Jacomme, and Jessica Richards    *
+ *                                                           *
+ *  IEEE Symposium on Security and Privacy 2026              *
+ *                                                           *
+ *************************************************************)
+
+(** Proof Helpers
+----------------------------------------------- *)
+
+(** Due to current limitation of ProVerif (hopefully will soon disappear in stable version of liveness), we use the KnowledgeAtt event to represent attacker knowledge in some lemmas. *)
+event KnowledgeAtt(point).
+
+(** Restrict various points to one replication for sanity **)
+event OneReplN(nat, timestamp).
+
+letfun OneReplicationN(n:nat) = 
+  new ts:timestamp;
+  event OneReplN(n, ts);
+  ()
+.
+
+(** Restrict to one session (for sanity checks) *)
+event OneRepl(timestamp).
+
+(* Restrict to two message creations (for sanity checks) *)
+event TwoRepl(timestamp).
+
+event OneRepl'(timestamp).
+
+letfun OneReplication() = 
+  new ts:timestamp;
+  event OneRepl(ts);
+  ()
+.
+
+(* We have two increasing counters in the memory cell *)
+letfun modif_counter(sif:session_info) = C(CL(state_chan(sif),0),Incr).
+letfun ratchet_counter(sif:session_info) = C(CL(state_chan(sif),1),Incr).
+letfun recv_counter(sif:session_info) = C(CL(state_chan(sif),2),Incr). 
+
+event ModificationIndices(
+  nat,          (* Location *)
+  session_info, (* Session info of the memeory cell *)
+  chain_key,    (* CKr *)
+  nat,          (* Nr *)
+  nat,          (* m_idx *)
+  nat           (* r_idx *)
+).    
+
+(* Sanity events *)
+
+event Sanity(
+  channel,  (* Memory cell *)
+  nat,      (* Location *)
+  nat,      (* Modification index *)
+  nat       (* Ratchet Index *)
+).
+
+(* The Location values are as follows:
+  - 0: Ratchet Encrypt
+  - 1: SkipMessageKeys 
+  - 2: BasicDecrypt  
+  - 3: RatchetDecrypt (Try Skipped Message Keys)
+  - 4: RatchetDecrypt (No found Skipped Message Keys, Different Header)
+*)

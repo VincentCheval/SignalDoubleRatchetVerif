@@ -1,0 +1,373 @@
+(* -lib ../params/params-all-comp.pvl *)
+(* -lib ../params/switches.pvl *)
+(* -lib ../libs/gsverif_library.pvl *)
+(* -lib ../libs/crypto.pvl *)
+(* -lib ../libs/format.pvl*)
+(* -lib ../libs/proof_helpers.pvl *)
+(* -lib ../models/DR-functions.pvl *)
+
+(*************************************)
+(*
+
+Original Authors: Karthikeyan Bhargavan <karthik@cryspen.com>
+	 Charlie Jacomme <charlie.jacomme@inria.fr>
+	 Franziskus Kiefer <franziskus@cryspen.com>
+
+*)	 
+
+(*************************************************************
+ *                                                           *
+ *  Automated formal analysis of Signal’s Double Ratchet:    *
+ *    attacks, fixes and security proofs                     *
+ *                                                           *
+ *  Vincent Cheval, Charlie Jacomme, and Jessica Richards    *
+ *                                                           *
+ *  IEEE Symposium on Security and Privacy 2026              *
+ *                                                           *
+ *************************************************************)
+
+
+(*-----------------------------------*)
+(* A Symbolic Cryptographic Model    *)
+(* for primitives in Sec 2.2 Cryptographic notation *)
+(*-----------------------------------*)
+
+(* KEM Encapsulation *)
+type kempriv.
+type kempub.
+
+fun k2b(kempub):bitstring [typeConverter].
+
+fun kempk(kempriv):kempub.
+fun penc(kempub,bitstring):bitstring.
+fun pdec(kempriv,bitstring):bitstring
+reduc forall sk:kempriv,m:bitstring;
+      pdec(sk,penc(kempk(sk),m)) = m.
+
+letfun kempriv2pub(k:kempriv) = kempk(k).
+
+letfun pqkem_enc(pk:kempub) =
+       new ss:bitstring;
+       (penc(pk,ss),ss).
+       
+letfun pqkem_dec(sk:kempriv,ct:bitstring) =
+       pdec(sk,ct).
+
+
+(* the domains are disjoints, see [PQXDH] *)
+fun encodeEC(point):bitstring [data].
+fun encodeKEM(kempub):bitstring [data].
+
+fun sid_of_rk(root_key): session_id.
+
+
+event InitComp(id,root_key,associated_data,point).
+event RespComp(id,root_key,associated_data,scalar).
+
+
+event InitSPKs(timestamp, point, kempub).
+event RespSPKs(timestamp, key_pair, kempriv).
+
+event SecretSPKpriv(scalar).
+
+(* Bitstring manipulations *)
+
+(* Constants *)
+const zero: bitstring.
+const one: bitstring.
+
+(* A zero-filled byte sequence with length equal to the hash output length, in bytes. *)
+const zeroes_sha512:bitstring.
+
+(* A byte sequence containing 32 0xFF bytes if curve is curve25519 *)
+const ff_x25519:bitstring.
+
+(* A byte sequence containing 57 0xFF bytes if curve is curve448 *)
+const ff_x448:bitstring.
+
+(* The concatenation of string representations of the 4 PQXDH parameters info, curve, hash, and pqkem into a single string separated with ‘_’ such as “MyProtocol_CURVE25519_SHA-512_CRYSTALS-KYBER-1024”. *)
+const info_x25519_sha512_kyber1024:bitstring.
+
+(* Unambiguous concatenation, assumes that length of first element is known *)
+fun concatIKKEM(point,point,kempub): associated_data [data].
+
+fun concatPair(bitstring,bitstring): bitstring [data].
+fun concat5(point,point,point,point,bitstring):bitstring [data].
+fun concat4(point,point,point,bitstring):bitstring [data].
+
+(* HKDF *)
+
+(* One-shot HKDF(input_key_material, salt, info) *)
+type symkey.
+
+
+letfun kdf(km:bitstring) =
+  hkdf(concatPair(ff_x25519,km),zeroes_sha512,info_x25519_sha512_kyber1024)
+.
+
+event isBool(bool).
+
+(*-----------------------------------*)
+(*          PKI                      *)
+(*-----------------------------------*)
+
+(* Global PKI maintained by the Server, checked by Clients *)
+
+(* For each client Bob:
+   - Bob’s curve identity key IKB *)
+   
+table identity_pubkeys(id,point).
+
+(*-----------------------------------*)
+(* Security Model and Properties     *)
+(*-----------------------------------*)
+
+
+(* A channel for the server, but in fact controlled by the attacker. *)
+
+free server:channel.
+
+(* For Testing
+event Reachable().
+query event(Reachable()).
+*)
+
+(* An event triggered when the private keys of a client are compromised *)
+
+(* Handshake Events *)
+event InitDone(id,id,bool,point,point,kempub,root_key, associated_data, session_info).
+
+event RespondDone(id,id,bool,point,point,kempub,root_key, associated_data, session_info). 
+
+(* Application Messages and Events *)
+fun app_message(id,id,bitstring):bitstring [private].
+event AppSend(id,id,bitstring).
+event AppRecv(id,id,bitstring).
+
+
+(* Compromise Events *)
+event CompromiseIK(id).
+event CompromiseSPK(id,point).
+event CompromiseOPK(id,point).
+event CompromisePQPK(id,kempub).
+
+event BrokenDH.
+
+let dh_attacks() =
+    in (att,p:point);
+    event BrokenDH;
+    out (att,discreteLog(p)).
+
+(* KEM breaks down *)
+fun inversePK(kempub): kempriv
+reduc forall s:kempriv;
+      inversePK(kempk(s)) = s [private].
+
+event BrokenKEM.
+
+let kem_attacks() =
+    in (att,p:kempub);
+    event BrokenKEM;
+    out (att,inversePK(p)).
+
+(*-----------------------------------*)
+(* Protocol Processes                *)
+(*-----------------------------------*)
+
+(* PQXDH Protocol *)
+
+(* Alice then sends Bob an initial message containing:
+   - Alice’s identity key IKA
+   - Alice’s ephemeral key EKA
+   - The pqkem ciphertext CT encapsulating SS for PQPKB
+   - Identifiers stating which of Bob’s prekeys Alice used
+   - An initial ciphertext encrypted with some AEAD encryption scheme [5] using AD as associated data and using an encryption key which is either SK or the output from some cryptographic PRF keyed by SK.
+*)
+       
+let Initiator(i:id, IKA:key_pair) =
+    
+  (* we let the attacker choose the responder we will communicate with *)
+  in(att,r:id);
+  
+  (* Initiator public key *)
+  let KeyPair(IKA_s,IKA_p) = IKA in   
+  
+  (* Retrieve the responder identity key *)
+  get identity_pubkeys(=r,IKB_p) in
+
+    (***) let () = if precise_for_lemma then PH_precise_input((r,IKB_p)) else () in
+
+  (* receive from the server the pre key bundles *)
+  in(server, (SPKB_p:point,SPKB_sig:bitstring,PQPKB_p:kempub,PQPKB_sig:bitstring));
+
+    (***) let () = if precise_for_lemma then PH_precise_input(p2b(SPKB_p)) else () in
+    (***) let () = if precise_for_lemma then PH_precise_input(SPKB_sig) else () in
+    (***) let () = if precise_for_lemma then PH_precise_input(k2b(PQPKB_p)) else () in
+    (***) let () = if precise_for_lemma then PH_precise_input(PQPKB_sig) else () in
+
+  new ts: timestamp;
+  event InitSPKs(ts, SPKB_p, PQPKB_p);
+  out(att, SPKB_p);
+  event KnowledgeAtt(SPKB_p);
+  (* Verify the signatures *)
+  if verify(IKB_p,encodeEC(SPKB_p),SPKB_sig) then
+  if verify(IKB_p,encodeKEM(PQPKB_p),PQPKB_sig) then (* Here, we don't know whether we have a last resort or one time key. *)
+
+  (* Optionally receive a one time key *)
+  in (server,(useOPK:bool,OPKB_p:point));
+
+    (***) let () = if precise_for_lemma then PH_precise_input(bool2b(useOPK)) else () in
+    (***) let () = if precise_for_lemma then PH_precise_input(p2b(OPKB_p)) else () in
+
+  event isBool(useOPK);
+  let (CT:bitstring,SS:bitstring) = pqkem_enc(PQPKB_p) in
+
+  let EKA = generate_dh() in
+  let KeyPair(EKA_s,EKA_p) = EKA in   
+
+  let DH1 = dh_left_create(IKA,SPKB_p) in
+  let DH2 = dh_left_create(EKA,IKB_p) in
+  let DH3 = dh_left_create(EKA,SPKB_p) in
+
+  let SK = 
+    (if useOPK then (let DH4 = dh_left_create(EKA,OPKB_p) in  kdf(concat5(DH1,DH2,DH3,DH4,SS)))
+    else kdf(concat4(DH1,DH2,DH3,SS)))
+  in
+    
+  out(server, (IKA_p,EKA_p, CT,  true, OPKB_p, SPKB_p, PQPKB_p));
+
+  let ad = concatIKKEM(IKA_p,IKB_p,PQPKB_p) in
+  let s_id = sid_of_rk(SK) in
+  let sinfo = session(s_id,true,i,r) in
+  
+  event InitDone(i,r,useOPK,OPKB_p,SPKB_p,PQPKB_p,SK, ad, sinfo);
+
+  (* Ratchet Init Alice *)
+  AliceDoubleRatchet(sinfo, SK, SPKB_p, none_hk, none_hk, ad, false)
+.
+
+event processEKA(point,timestamp).
+
+let Responder_mess(r:id, IKB:key_pair, SPKB:key_pair,PQSPKB_s:kempriv)=
+  
+  let KeyPair(IKB_s,IKB_p) = IKB in
+  let KeyPair(SPKB_s,SPKB_p) = SPKB in
+  let PQSPKB_p = kempriv2pub(PQSPKB_s) in
+
+  (* Generate a new one time OPKB *)
+  let OPKB = generate_dh() in
+  let KeyPair(OPKB_s,OPKB_p) = OPKB in       
+  (* event SecOPK(r, OPKB_s); *)
+  (* send public keys to server *)
+  out (server,(true, OPKB_p ));
+ 
+  (* Receive Message with the currently stored public keys *)
+  
+  in (server,(IKA_p:point,EKA_p:point,CT:bitstring,useOPK:bool,=OPKB_p,=SPKB_p,=PQSPKB_p)) ;
+    
+    (***) let () = if precise_for_lemma then PH_precise_input(p2b(IKA_p)) else () in
+    (***) let () = if precise_for_lemma then PH_precise_input(p2b(EKA_p)) else () in
+    (***) let () = if precise_for_lemma then PH_precise_input(CT) else () in
+    (***) let () = if precise_for_lemma then PH_precise_input(bool2b(useOPK)) else () in
+  
+  event isBool(useOPK);
+
+  new ts0: timestamp;
+  event processEKA(EKA_p,ts0);
+  (* Verify remote identity key *)
+  get identity_pubkeys(i,=IKA_p) in
+
+    (***) let () = if precise_for_lemma then PH_precise_input((i,IKA_p)) else () in
+    
+  if r <> i then  (* JUST FOR SANITY *)
+
+  (* Retrieve one-time private keys *)
+
+  let SS = pqkem_dec(PQSPKB_s,CT) in
+  let DH1 = dh_right(SPKB,IKA_p) in
+  let DH2 = dh_right(IKB, EKA_p) in
+  let DH3 = dh_right(SPKB,EKA_p) in        
+  let SK =
+    (
+      if useOPK 
+      then (let DH4 = dh_right(OPKB,EKA_p) in  kdf(concat5(DH1,DH2,DH3,DH4,SS)))
+      else kdf(concat4(DH1,DH2,DH3,SS))
+    )
+  in
+
+  new ts: timestamp;
+  event ComputedSK(SK, ts);   
+  event RespSPKs(ts, SPKB, PQSPKB_s);
+  let s_id = sid_of_rk(SK) in
+  let sinfo = session(s_id,false,r,i) in
+  let ad = concatIKKEM(IKA_p,IKB_p,PQSPKB_p) in
+
+  (* Ratchet Init Bob *)
+  BobDoubleRatchet(sinfo, SK, SPKB, none_hk, none_hk, ad, false)
+.
+
+let Responder(r:id, IKB:key_pair) =
+  let KeyPair(IKB_s,IKB_p) = IKB in   
+
+  (* Creates a new DH based Signed Pre-Key *)
+  let SPKB = generate_dh() in
+  let KeyPair(SPKB_s,SPKB_p) = SPKB in   
+  event SecretSPKpriv(SPKB_s);
+  out(att, SPKB_p);
+  event KnowledgeAtt(SPKB_p);
+
+  new zSPKB[]:nonce;
+  let SPKB_sig = sign(IKB_s,encodeEC(SPKB_p),zSPKB) in
+
+  (* Creates a new KEM based Signed Pre-Key *)
+  new PQSPKB_s:kempriv;
+  
+  let PQSPKB_p = kempriv2pub(PQSPKB_s) in
+  new zPQSPKB[]:nonce;
+  let PQSPKB_sig = sign(IKB_s,encodeKEM(PQSPKB_p),zPQSPKB) in    
+
+  (* send public keys to server *)
+  out (server,(SPKB_p,SPKB_sig,PQSPKB_p,PQSPKB_sig));
+
+    (in(att, =r); event CompromisePQPK(r, PQSPKB_p); out(att,PQSPKB_s))
+  | ! let () = OneReplicationN(10) in Responder_mess(r, IKB, SPKB,PQSPKB_s)
+.
+
+
+(* A process to create a new client and publish its keys *)
+let Launch_pqxdh_client(p:id) =
+  (* Create a new client *)
+  let IK = generate_dh() in
+  let KeyPair(IK_s,IK_p) = IK in  
+    
+  insert identity_pubkeys(p,IK_p);
+  
+  (* Publish the public key identity pair. *)
+  out(att,IK_p);
+  (
+      (* Initiator role *)
+      (! ( let () = OneReplicationN(11) in Initiator(p, IK)))
+
+      (* Responder role without OPK *)   
+    | ! ( let () = OneReplicationN(12) in Responder(p, IK))
+
+    |
+      (* Compromise of the identity key *)
+      (in(att, =p); event CompromiseIK(p); out(att,IK_s)) 
+  )
+.
+
+(* Main Process: any number of clients and members *)
+
+let SystemPQXDH =
+  ! in(att,c:id); Launch_pqxdh_client(c)
+  | ! dh_attacks
+  | ! kem_attacks
+.
+
+
+let SystemPQXDH_simpl =
+  ! in(att,c:id); Launch_pqxdh_client(c)
+  | ! dh_attacks
+  | ! kem_attacks
+.

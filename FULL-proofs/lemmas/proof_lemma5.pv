@@ -1,0 +1,86 @@
+(* -lib ../../params/params-all-comp-precise.pvl *)
+(* -lib ../../params/switches.pvl *)
+(* -lib ../../libs/gsverif_library.pvl *)
+(* -lib ../../libs/crypto.pvl *)
+(* -lib ../../libs/format.pvl*)
+(* -lib ../../libs/proof_helpers.pvl *)
+(* -lib ../../models/DR-functions.pvl *)
+(* -lib ../../libs/lemmas.pvl *)
+(* -lib ../../models/PQXDH-model.pvl *)
+(* -lib ../../models/FULL-model.pvl *)
+(* -lib ../../libs/full_restrictions.pvl *)
+
+(*************************************************************
+ *                                                           *
+ *  Automated formal analysis of Signal’s Double Ratchet:    *
+ *    attacks, fixes and security proofs                     *
+ *                                                           *
+ *  Vincent Cheval, Charlie Jacomme, and Jessica Richards    *
+ *                                                           *
+ *  IEEE Symposium on Security and Privacy 2026              *
+ *                                                           *
+ *************************************************************)
+
+set removeEventsForLemma = true.
+noselect z:scalar; attacker(SMUL(z,G)).
+noselect sif:session_info, x:bitstring; mess(state_chan( *sif), *x).
+
+expand GSVerif_Axiom_PreciseInput().
+expand Axioms_counter_Change().
+expand axioms_public_knowledge().
+expand axioms_internal_state1().
+expand axioms_session_state_invariants().
+
+lemma
+  sif:session_info,dhs,dhs':key_pair, dhs_prv,dhs_prv':scalar, dhs_pub,dhr,dhr':point, rk:root_key, cks,cks':chain_key, ckr,ckr':chain_key, hks,hks', nhks,nhks', hkr,hkr', nhkr,nhkr':header_key, ns,ns',nr,nr',pn,pn',m_idx,m_idx',r_idx,r_idx':nat, rcv_idx,rcv_idx':nat,
+  s:scalar, km:bitstring,rk',rk_0:root_key,dh_out:point, role,b:bool, r,i:id;
+ 
+  (* Encryption *)
+  (* If header encryption is disabled, the header keys are always none_hk *)
+  mess(state_chan(sif),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) && event(Header_Encryption(sif,b)) && b <> true ==> 
+    hks=none_hk && nhks = none_hk && hkr = none_hk && nhkr = none_hk;
+
+  (* RK *)
+  mess(state_chan(session(sid_of_rk(rk_0),role,i,r)),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) && event(CompromiseRK(sif,rk,r_idx)) ==> 
+    (rk = rk_0 && role = false && r_idx = 0) || kdf_rk_root(rk',dh_out) = rk;
+
+  (* DHs *)
+  mess(state_chan(sif),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) && event(CompromiseDHs(sif,dhs_prv,r_idx)) ==> 
+    dhs_prv = dh_scal(s) && KeyPair(dhs_prv,SMUL(dhs_prv,G)) = dhs;
+
+  (* CKr *)
+  mess(state_chan(sif),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) && event(CompromiseCKr(sif,ckr,nr,r_idx)) ==> 
+    none_ck = ckr || kdf_rk_chain(rk',dh_out) = ckr || kdf_ck_chain(ckr') = ckr; 
+
+  (* CKr *)
+  mess(state_chan(sif),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) && event(CompromiseCKs(sif,cks,ns,r_idx)) ==> 
+    none_ck = cks || kdf_rk_chain(rk',dh_out) = cks || kdf_ck_chain(cks') = cks;
+
+  (* Lemmas from lemmas_internal_state2 *)
+
+  (* Same r_idx implies same DHs and header keys *)
+  mess(state_chan(sif),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) &&
+  mess(state_chan(sif),cell(state( dhs', dhr', rk', cks', ckr', ns', nr', pn', hks', nhks', hkr', nhkr'),r_idx,m_idx',rcv_idx')) ==>  
+    dhs = dhs' && dhr = dhr' && rk = rk' && hks = hks' && nhks = nhks' && hkr = hkr' && nhkr = nhkr';
+
+  (* Same m_idx implies same everything *)
+  mess(state_chan(sif),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) &&
+  mess(state_chan(sif),cell(state( dhs', dhr', rk', cks', ckr', ns', nr', pn', hks', nhks', hkr', nhkr'),r_idx',m_idx,rcv_idx')) ==> 
+    dhs = dhs' && dhr = dhr' && rk = rk' && r_idx = r_idx' && cks = cks' && ckr = ckr' && ns = ns' && nr = nr' && pn = pn' && hks = hks' && nhks = nhks' && hkr = hkr' && nhkr = nhkr';
+
+  (* Lemmas from lemmas_internal_state3 *)
+
+  (* Same CKr implies same DHs and Nr, header keys *)
+  mess(state_chan(sif),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) &&
+  mess(state_chan(sif),cell(state( dhs', dhr', rk', cks', ckr, ns', nr', pn', hks', nhks', hkr', nhkr'),r_idx',m_idx',rcv_idx')) ==> 
+    nr = nr' && dhs = dhs' && hks = hks' && nhks = nhks' && hkr = hkr' && nhkr = nhkr';
+
+  (* There is at most one honest DH per ratchet index *)
+  event(HonestDH(sif,dhs_prv,dhr,r_idx)) && event(HonestDH(sif,dhs_prv',dhr',r_idx))  ==> dhr=dhr' && dhs_prv=dhs_prv'
+
+  [induction]
+.
+
+query attacker(()).
+
+process SystemFull

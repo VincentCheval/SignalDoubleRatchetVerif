@@ -1,0 +1,394 @@
+(* -lib ../params/params-all-comp.pvl *)
+(* -lib crypto.pvl *)
+(* -lib gsverif_library.pvl *)
+
+(*************************************************************
+ *                                                           *
+ *  Automated formal analysis of Signal’s Double Ratchet:    *
+ *    attacks, fixes and security proofs                     *
+ *                                                           *
+ *  Vincent Cheval, Charlie Jacomme, and Jessica Richards    *
+ *                                                           *
+ *  IEEE Symposium on Security and Privacy 2026              *
+ *                                                           *
+ *************************************************************)
+
+(** Internal States
+------------------------------------ *)
+
+(* [Extracted from Sec. 3.2] States are composed of the following data:
+  - DHs: DH Ratchet key pair (the "sending" or "self" ratchet key)
+  - DHr: DH Ratchet public key (the "received" or "remote" key)
+  - RK: 32-byte Root Key
+  - CKs, CKr: 32-byte Chain Keys for sending and receiving
+  - Ns, Nr: Message numbers for sending and receiving
+  - PN: Number of messages in previous sending chain
+  - HKs: Current sending header key
+  - NHKs: Next sending header key
+  - HKr: Current receiving header key
+  - NHKr: Next receiving header key
+  - mkskipped: Dictionary of skipped-over message keys, indexed by ratchet public key and message number. Raises an exception if too many elements are stored. 
+  - mkskippedHE: Dictionary of skipped-over message keys, indexed by *header key* and message number. Raises an exception if too many elements are stored. 
+  In our model, the dictionary mkskipped is represented by a global table and we use a private channel to represent a memory cell. Intuitively, the content of the global table when the memory cell is read correspond to the value of the dictionary mkskipped.
+*)
+
+(** The type for internal state. *)
+type internal_state.
+fun state(
+  key_pair,   (* DHs: DH Ratchet key pair (the "sending" or "self" ratchet key) *)
+  point,      (* DHr: DH Ratchet public key (the "received" or "remote" key) *)
+  root_key,   (* RK: 32-byte Root Key *)
+  chain_key,  (* CKs: 32-byte Chain Keys for sending *)
+  chain_key,  (* CKr: 32-byte Chain Keys for receiving *)
+  nat,        (* Ns: Message numbers for sending *)
+  nat,        (* Nr: Message numbers for receiving *)
+  nat,        (* PN: Number of messages in previous sending chain *)
+  header_key, (* HKs: Current sending header key *)
+  header_key, (* NHKs: Next sending header key *)
+  header_key, (* HKr: Current receiving header key *)
+  header_key  (* NHKr: Next receiving header key *)
+  ):internal_state [data].
+
+(** The type of memory cell content. *)
+type cell_content.
+
+(** Content of the memory cell, i.e. what will be exchanged over private channels. In cell(state,m_idx,ratchet_idx):
+- the integer r_idx represents the number of time a DH Ratchet has been executed in the session. We call this integer the ratchet index of the memory cell. 
+- the integer m_idx represents the number of time the state has been modified. We call this integer the modification index of the memory cell. 
+- the integer rcv_idx represents the total number of times a symmetric receive ratchet step has occurred in the session. *)
+fun cell(internal_state,nat,nat, nat):cell_content [data].
+
+(** Some access functions *)
+
+reduc forall dhs:key_pair, dhr:point, rk:root_key, cks,ckr:chain_key, ns,nr,pn:nat, hks,nhks,hkr,nhkr:header_key;
+  DHs(state(dhs,dhr,rk,cks,ckr,ns,nr,pn,hks,nhks,hkr,nhkr)) = dhs.
+
+reduc forall dhs:key_pair, dhr:point, rk:root_key, cks,ckr:chain_key, ns,nr,pn:nat, hks,nhks,hkr,nhkr:header_key;
+  DHr(state(dhs,dhr,rk,cks,ckr,ns,nr,pn,hks,nhks,hkr,nhkr)) = dhr.
+
+reduc forall dhs:key_pair, dhr:point, rk:root_key, cks,ckr:chain_key, ns,nr,pn:nat, hks,nhks,hkr,nhkr:header_key;
+  RK(state(dhs,dhr,rk,cks,ckr,ns,nr,pn,hks,nhks,hkr,nhkr)) = rk.
+
+reduc forall dhs:key_pair, dhr:point, rk:root_key, cks,ckr:chain_key, ns,nr,pn:nat, hks,nhks,hkr,nhkr:header_key;
+  CKs(state(dhs,dhr,rk,cks,ckr,ns,nr,pn,hks,nhks,hkr,nhkr)) = cks.
+
+reduc forall dhs:key_pair, dhr:point, rk:root_key, cks,ckr:chain_key, ns,nr,pn:nat, hks,nhks,hkr,nhkr:header_key;
+  CKr(state(dhs,dhr,rk,cks,ckr,ns,nr,pn,hks,nhks,hkr,nhkr)) = ckr.
+
+reduc forall dhs:key_pair, dhr:point, rk:root_key, cks,ckr:chain_key, ns,nr,pn:nat, hks,nhks,hkr,nhkr:header_key;
+  Ns(state(dhs,dhr,rk,cks,ckr,ns,nr,pn,hks,nhks,hkr,nhkr)) = ns.
+
+reduc forall dhs:key_pair, dhr:point, rk:root_key, cks,ckr:chain_key, ns,nr,pn:nat, hks,nhks,hkr,nhkr:header_key;
+  Nr(state(dhs,dhr,rk,cks,ckr,ns,nr,pn,hks,nhks,hkr,nhkr)) = nr.
+
+reduc forall dhs:key_pair, dhr:point, rk:root_key, cks,ckr:chain_key, ns,nr,pn:nat, hks,nhks,hkr,nhkr:header_key;
+  PN(state(dhs,dhr,rk,cks,ckr,ns,nr,pn,hks,nhks,hkr,nhkr)) = pn.
+
+reduc forall dhs:key_pair, dhr:point, rk:root_key, cks,ckr:chain_key, ns,nr,pn:nat, hks,nhks,hkr,nhkr:header_key;
+  HKs(state(dhs,dhr,rk,cks,ckr,ns,nr,pn,hks,nhks,hkr,nhkr)) = hks.
+
+reduc forall dhs:key_pair, dhr:point, rk:root_key, cks,ckr:chain_key, ns,nr,pn:nat, hks,nhks,hkr,nhkr:header_key;
+  NHKs(state(dhs,dhr,rk,cks,ckr,ns,nr,pn,hks,nhks,hkr,nhkr)) = nhks.
+
+reduc forall dhs:key_pair, dhr:point, rk:root_key, cks,ckr:chain_key, ns,nr,pn:nat, hks,nhks,hkr,nhkr:header_key;
+  HKr(state(dhs,dhr,rk,cks,ckr,ns,nr,pn,hks,nhks,hkr,nhkr)) = hkr.
+
+reduc forall dhs:key_pair, dhr:point, rk:root_key, cks,ckr:chain_key, ns,nr,pn:nat, hks,nhks,hkr,nhkr:header_key;
+  NHKr(state(dhs,dhr,rk,cks,ckr,ns,nr,pn,hks,nhks,hkr,nhkr)) = nhkr.
+
+(* And some more access functions for the header *)
+
+reduc forall hDH: point, pN:nat, N:nat;
+  HeaderN(Header(hDH, pN, N)) = N.
+
+reduc forall hDH: point, pN:nat, N:nat;
+  HeaderDHP(Header(hDH, pN, N)) = hDH.
+
+(** Information that uniquely identify a session *)
+type session_info.
+
+(** Session identifier *)
+type session_id. 
+
+(** Client identifiers *)
+type id. 
+
+
+(* A table to store the SPKs of a participant *)
+table SPKs(
+  id,      (* Responder *)
+  key_pair (* Responder SPK *)
+).
+
+
+event ChosenSPK(
+  session_info, (* Session id *)
+  key_pair (* SPK *)
+).
+
+(** Used to internally store who talks to who, with session(session_id,myid,partnerid) *)
+fun session(session_id,bool,id,id) : session_info [data]. 
+
+(** Create the private channel representing the memory cell containing the internal state. *)
+fun state_chan(session_info) : channel [private].
+
+free InitContinuationChannel:channel [private].
+free RespContinuationChannel:channel [private].
+
+(** The dictionary mkskipped
+------------------------------------ *)
+
+(* The dictionary mkskipped maps pair of (DHr,Nr) to a message key. As there is a dictionary per session, we thus represent this by a table where each entry contains the session info, the "key" of the map, i.e. DHr and NR and the message key. We also add the modification and ratchet index of the memory cell. The final argument is the timestamp indicating when the insertion has been done. *)
+table mkskipped(
+  session_info, (* Session info (unique per state) *)
+  point,        (* DHr *)
+  nat,          (* Nr *)
+  message_key,  (* The stored message key *)
+  nat,          (* Modification index *)
+  nat,          (* Ratchet index *)
+  timestamp     (* When the insertion happened.*)
+).
+
+(* To model deletion in the dictionary, we rely on restrictions *)
+
+event mkskipped_del(
+  session_info, (* Session info (unique per state) *)
+  point,        (* DHr *)
+  nat,          (* Nr *)
+  message_key  (* The stored message key *)
+).
+
+letfun delete_skipped_message(sinfo:session_info,dhr:point,nr:nat,mk:message_key) =
+  event mkskipped_del(sinfo,dhr,nr,mk);
+  ()
+.
+
+letfun insert_skipped_message(sinfo:session_info,dhr:point,nr:nat,mk:message_key,m_idx:nat,r_idx:nat) =
+  new ts[]:timestamp;
+  insert mkskipped(sinfo, dhr, nr, mk, m_idx, r_idx, ts);
+  ()
+.
+
+(** The restriction ensures that we can only "delete" the a key once. *)
+restriction sinfo:session_info, dhr:point, nr:nat, mk:message_key, i,j:time;
+  event(mkskipped_del(sinfo,dhr,nr,mk))@i && 
+  event(mkskipped_del(sinfo,dhr,nr,mk))@j ==>
+    i=j
+.
+
+(* Given the current memory cell cell(st,m_idx,ratchet_idx) of a session with session information sif, the dictionary MSKIPPED is the set of entries { [DHr,nr] -> mk | mkskipped(sif,Dhr,nr,mk,_,_,_) is an entry and no mkskipped_del(sif,Dhr,nr,mk,_,) has been executed so far. }. *)
+
+(* WARNING: Our current modelisation only works if we can ensure that the same message key will never be inserted with the same "key" (DHr, Nr) twice. We need to prove the following lemma. (proved in dr-lemma6) *)
+
+def correctness_model_dictionary() {
+  lemma sinfo:session_info, nr,m_idx1,m_idx2,r_idx1,r_idx2:nat, dhr:point, mk:message_key, ts1,ts2:timestamp;
+    table(mkskipped(sinfo,dhr,nr,mk,m_idx1,r_idx1,ts1)) &&
+    table(mkskipped(sinfo,dhr,nr,mk,m_idx2,r_idx2,ts2)) ==>
+      ts1 = ts2
+  [induction].
+}
+
+(* HEADER variants of the above functions *)
+
+(** The dictionary mkskippedHE
+------------------------------------ *)
+
+(* The dictionary mkskippedHE maps pair of (HKr,Nr) to a message key. *)
+table mkskipped_he(
+  session_info, (* Session info (unique per state) *)
+  header_key,   (* HKr *)
+  nat,          (* Nr *)
+  message_key,  (* The stored message key *)
+  nat,          (* Modification index *)
+  nat,          (* Ratchet index *)
+  timestamp     (* When the insertion happened.*)
+).
+
+(* To model deletion in the dictionary, we rely on restrictions *)
+
+event mkskipped_del_he(
+  session_info, (* Session info (unique per state) *)
+  header_key,   (* HKr *)
+  nat,          (* Nr *)
+  message_key  (* The stored message key *)
+).
+
+letfun delete_skipped_message_he(sinfo:session_info,hkr:header_key,nr:nat,mk:message_key) =
+  event mkskipped_del_he(sinfo,hkr,nr,mk);
+  ()
+.
+
+letfun insert_skipped_message_he(sinfo:session_info,hkr:header_key,nr:nat,mk:message_key,m_idx:nat,r_idx:nat) =
+  new ts[]:timestamp;
+  insert mkskipped_he(sinfo, hkr, nr, mk, m_idx, r_idx, ts);
+  ()
+.
+
+(** The restriction ensures that we can only "delete" the a key once. *)
+restriction sinfo:session_info, hkr:header_key, nr:nat, mk:message_key, i,j:time;
+  event(mkskipped_del_he(sinfo,hkr,nr,mk))@i && 
+  event(mkskipped_del_he(sinfo,hkr,nr,mk))@j ==>
+    i=j
+.
+
+(* Given the current memory cell cell(st,m_idx,ratchet_idx) of a session with session information sif, the dictionary MSKIPPED is the set of entries { [DHr,nr] -> mk | mkskipped(sif,Dhr,nr,mk,_,_,_) is an entry and no mkskipped_del(sif,Dhr,nr,mk,_,) has been executed so far. }. *)
+
+(* WARNING: Our current modelisation only works if we can ensure that the same message key will never be inserted with the same "key" (DHr, Nr) twice. We need to prove the following lemma. (proved in dr-lemma6) *)
+
+def correctness_model_dictionary_he() {
+  lemma sinfo:session_info, nr,m_idx1,m_idx2,r_idx1,r_idx2:nat, hkr:header_key, mk:message_key, ts1,ts2:timestamp;
+    table(mkskipped_he(sinfo,hkr,nr,mk,m_idx1,r_idx1,ts1)) &&
+    table(mkskipped_he(sinfo,hkr,nr,mk,m_idx2,r_idx2,ts2)) ==>
+      ts1 = ts2
+  [induction].
+}
+
+
+
+
+(** Events to express the security properties
+----------------------------------------------- *)
+
+event Nonce_used( (* The attacker has used a (non repeatable) nonce *)
+  session_info,
+  nonce,
+  timestamp
+).
+
+(** The receiver has successfully received and decrypted a message. *)
+event Receive(
+  session_info, (* The session info *)
+  point,        (* headerDH *)
+  nat,          (* headerN *)
+  bitstring     (* The plaintext decrypted *)
+).
+
+(** The sender has successfully encrypted and sent a message. *)
+event Send(
+  session_info, (* The session info *)
+  point,        (* headerDH *)
+  nat,          (* headerN *)
+  bitstring     (* The plaintext decrypted *)
+).
+
+event AuthFail(
+  session_info, (* The session info *)
+  point,        (* headerDH *)
+  nat           (* headerN *)
+).
+
+event HeaderAuthFail(
+  header,
+  header_key,
+  header_key
+).
+
+(** The receiver has successfully received and decrypted a header. *)
+event ReceiveHE(
+  session_info, (* The session info *)
+  point,        (* headerDH *)
+  nat,          (* headerN *)
+  header     (* The plaintext decrypted *)
+).
+
+
+type role.
+const Sender:role.
+const Receiver:role.
+
+event MessageKey(
+  session_info, (* The session info *)
+  role,         (* Role (Sender or receiver) *)
+  point,        (* DHs or DHr based on role *)
+  message_key,  (* Message key *)
+  nat,          (* Number of the key *)
+  nat           (* r_idx - Ratchet index *)
+).
+
+event Skip(
+  nat,  (* Message key *)
+  nat,          (* Number of the key *)
+  nat,
+  nat           (* r_idx - Ratchet index *)
+).
+
+event ComputedSK(
+  root_key,
+  timestamp 
+).
+
+event Reach(session_info,nat,nat).
+
+
+(* a fresh honest dh was generated by session *)
+event HonestDH(
+      session_info,  (* The session info *)
+      scalar,         (* the secret DH value *)      
+      point,         (* the public DH value *)
+      nat).          (* r_idx - Ratchet index *)
+
+(* a received header dh was used for ratcher by session *)
+event DHrUsed(
+      session_info,  (* The session info *)
+      point,         (* the public DH value *)
+      nat).          (* r_idx - Ratchet index *)
+
+(** Compromise events *)
+
+event Compromise(
+  session_info, (* The session info *)
+  nat           (* r_idx - Ratchet index *)
+).
+
+event CompromiseCKs(
+  session_info, (* The session info *)
+  chain_key,    (* Sender chain key *)
+  nat,          (* Ns - Number of sending key *)
+  nat           (* r_idx - Ratchet index *)
+).
+
+event CompromiseCKr(
+  session_info, (* The session info *)
+  chain_key,    (* Sender chain key *)
+  nat,          (* Ns - Number of sending key *)
+  nat           (* r_idx - Ratchet index *)
+).
+
+
+event CompromiseDHs(
+  session_info, (* The session info *)
+  scalar,       (* DH sending private key *)
+  nat           (* r_idx - Ratchet index *)
+).
+
+
+event CompromiseRK(
+  session_info, (* The session info *)
+  root_key,       (* The root key *)
+  nat           (* r_idx - Ratchet index *)  
+).
+
+event CompromiseMK(
+  session_info, (* The session info *)
+  message_key,       (* The root key *)
+  nat,           (* Nr - Number of receiving key *)  
+  nat           (* r_idx - Ratchet index *)  
+).
+
+event CompromiseHK(
+  session_info,
+  header_key, (* header / next header sending and receiving keys *)
+  header_key,
+  header_key,
+  header_key,
+  nat  (* r_idx *)
+).
+
+event Using_HE(
+  bool
+).
+
+event Header_Encryption(
+  session_info,
+  bool
+).

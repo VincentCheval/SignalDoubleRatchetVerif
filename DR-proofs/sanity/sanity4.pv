@@ -1,0 +1,86 @@
+(* -lib ../../params/params-no-comp.pvl *)
+(* -lib ../../params/switches.pvl *)
+(* -lib ../../libs/gsverif_library.pvl *)
+(* -lib ../../libs/crypto.pvl *)
+(* -lib ../../libs/format.pvl*)
+(* -lib ../../libs/proof_helpers.pvl *)
+(* -lib ../../models/DR-functions.pvl *)
+(* -lib ../../libs/lemmas.pvl *)
+(* -lib ../../models/DR-model.pvl *)
+
+(*************************************************************
+ *                                                           *
+ *  Automated formal analysis of Signal’s Double Ratchet:    *
+ *    attacks, fixes and security proofs                     *
+ *                                                           *
+ *  Vincent Cheval, Charlie Jacomme, and Jessica Richards    *
+ *                                                           *
+ *  IEEE Symposium on Security and Privacy 2026              *
+ *                                                           *
+ *************************************************************)
+
+set reconstructTrace = true.
+set preciseActions = true.
+set nounifIgnoreAFewTimes = auto.
+
+expand Axioms_GSVerif().
+ expand axioms_secrecy_no_comp(). 
+ expand axioms_public_knowledge(). 
+
+
+restriction s:session_info, hdh:point, i:nat;
+  event(AuthFail(s,hdh,i)) ==> false
+.
+
+restriction ts,ts':timestamp;
+  event(OneRepl(ts)) && event(OneRepl(ts')) ==> ts = ts'
+.
+
+const idA, idB: id.
+
+restriction s:session_id, b:bool, l,m_idx,r_idx:nat, id1,id2:id;
+  let chA = state_chan(session(s,true,idA,idB)) in
+  event(Sanity(chA,l,m_idx,r_idx)) ==> 
+    (l,m_idx,r_idx) = (0,0,1) || 
+    (l,m_idx,r_idx) = (0,1,1) ||
+    (l,m_idx,r_idx) = (4,2,1) ||
+    (l,m_idx,r_idx) = (2,3,3)
+  ;
+
+  let chB = state_chan(session(s,false,idB,idA)) in
+  event(Sanity(chB,l,m_idx,r_idx)) ==> 
+    (l,m_idx,r_idx) = (4,0,0) ||
+    (l,m_idx,r_idx) = (1,1,2) ||
+    (l,m_idx,r_idx) = (2,2,2) ||
+    (l,m_idx,r_idx) = (0,3,2) 
+  ;
+
+  event(Sanity(state_chan(session(s,b,id1,id2)),l,m_idx,r_idx)) 
+  ==> (b,id1,id2) = (true,idA,idB) || (b,id1,id2) = (false,idB,idA)
+.
+
+(* Alice sends two message to Bob 
+  then Bob receives the second message of Alice
+  then Bob sends a message to Alice
+  then Alice received that message
+  then Bob receives the first message Alice sent *)
+
+query s,s':session_id, p,p':point, nr:nat, msg,msg',msg'':bitstring; 
+  let sA = session(s,true,idA,idB) in (* Alice *)
+  let sB = session(s,false,idB,idA) in (* Bob *)
+
+  (* Target *)
+     event(Receive(sB,p,1,msg)) && event(Send(sA,p,1,msg))
+  && event(Receive(sA,p',0,msg')) && event(Send(sB,p',0,msg'))
+  && event(Receive(sB,p,0,msg'')) && event(Send(sA,p,0,msg'')) && event(Using_HE(true));
+
+    let sA = session(s,true,idA,idB) in (* Alice *)
+  let sB = session(s,false,idB,idA) in (* Bob *)
+
+  (* Target *)
+     event(Receive(sB,p,1,msg)) && event(Send(sA,p,1,msg))
+  && event(Receive(sA,p',0,msg')) && event(Send(sB,p',0,msg'))
+  && event(Receive(sB,p,0,msg'')) && event(Send(sA,p,0,msg'')) && event(Using_HE(false))
+.
+
+process System

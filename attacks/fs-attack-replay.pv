@@ -1,0 +1,82 @@
+(* -lib ../params/params-all-comp.pvl *)
+(* -lib ../params/switches.pvl *)
+(* -lib ../libs/gsverif_library.pvl *)
+(* -lib ../libs/crypto.pvl *)
+(* -lib ../libs/format.pvl*)
+(* -lib ../libs/proof_helpers.pvl *)
+(* -lib ../models/DR-functions.pvl *)
+(* -lib ../libs/lemmas.pvl *)
+(* -lib ../../models/DR-model.pvl *)
+
+(*************************************************************
+ *                                                           *
+ *  Automated formal analysis of Signal’s Double Ratchet:    *
+ *    attacks, fixes and security proofs                     *
+ *                                                           *
+ *  Vincent Cheval, Charlie Jacomme, and Jessica Richards    *
+ *                                                           *
+ *  IEEE Symposium on Security and Privacy 2026              *
+ *                                                           *
+ *************************************************************)
+
+const idA, idB: id.
+const a_sid: session_id.
+
+restriction s:session_id, l,m_idx,r_idx:nat;
+  let chA = state_chan(session(s,true,idA,idB)) in
+  event(Sanity(chA,l,m_idx,r_idx)) ==> 
+    (l,m_idx,r_idx) = (0,0,1) || 
+    (l,m_idx,r_idx) = (0,1,1);
+
+  let chB = state_chan(session(s,false,idB,idA)) in
+  event(Sanity(chB,l,m_idx,r_idx)) ==> 
+    (l,m_idx,r_idx) = (4,0,0) ||
+    (l,m_idx,r_idx) = (1,1,2) ||
+    (l,m_idx,r_idx) = (2,2,2)
+.
+
+restriction id1,id2:id, s:session_id, l,m_idx,r_idx:nat, r:bool;
+  event(Sanity(state_chan(session(s,r,id1,id2)),l,m_idx,r_idx)) ==> 
+    (r,id1,id2) = (true,idA,idB) || (r,id1,id2) = (false,idB,idA)
+.
+
+let replaySystem = 
+
+  in(att, (idA:id, idB:id)); (* we let the attacker decide who talks with who *)
+  (***) let () = PH_precise_input((idA, idB)) in
+
+  if idA <> idB then 
+
+  let bob_dh_key_pair = generate_dh() in
+ 
+  new SK:root_key; (* From X3DH: Magically shared root key *) 
+  
+  let AD = idPair(idA,idB) in   (* WARNING: Why this is the additional data? *)
+
+  let KeyPair(_,bob_dh_public_key) = bob_dh_key_pair in
+  out(att,bob_dh_public_key);
+  event KnowledgeAtt(bob_dh_public_key);
+
+     AliceDoubleRatchet(session(a_sid,true,idA,idB), SK, bob_dh_public_key, none_hk, none_hk, AD, false)
+  | ! 
+    (* Sessions initiated by replaying Alice's initial parameters *)
+    new s_id:session_id; 
+    BobDoubleRatchet(session(s_id,false,idB,idA), SK,  bob_dh_key_pair, none_hk, none_hk, AD, false)
+.
+
+
+(* Forward secrecy query specialised to Bob's case (as receiver) *)
+query sd:session_id, r,r':bool, n,ns,nr,r_idx,r_idx':nat, dhs,dhr:point, dr_mk,mk,pq_mk:message_key, ck:chain_key, rk:root_key, p:point, msg:bitstring, i,j,k:time; 
+event(MessageKey(session(sd,false,idB,idA),Receiver,dhs, mk,n,r_idx)) && attacker(mk) ==>
+   event(CompromiseMK(session(sd,false,idB,idA), dr_mk,n,r_idx)) && mk=kdf_hybrid(dr_mk,pq_mk) || 
+  
+  (event(CompromiseRK(session(sd,false,idB,idA),rk,r_idx')) && r_idx' + 2 <= r_idx) ||
+  (event(CompromiseRK(session(a_sid,true,idA,idB),rk,r_idx')) && r_idx' + 2 <= r_idx) ||
+  
+  (event(CompromiseCKs(session(a_sid,true, idA,idB),ck,ns,r_idx')) && ns <= n && r_idx'+1 = r_idx) ||
+  (event(CompromiseCKr(session(sd,false,idB,idA),ck,nr,r_idx)) && nr <= n)
+. 
+
+(* The receivers message keys in the 2nd ratchet may be leaked by another (later) receiver session *)
+
+process replaySystem

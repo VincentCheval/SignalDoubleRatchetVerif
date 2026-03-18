@@ -1,0 +1,211 @@
+(* -lib ../params/params-all-comp.pvl *)
+(* -lib gsverif_library.pvl *)
+
+(*************************************************************
+ *                                                           *
+ *  Automated formal analysis of Signal’s Double Ratchet:    *
+ *    attacks, fixes and security proofs                     *
+ *                                                           *
+ *  Vincent Cheval, Charlie Jacomme, and Jessica Richards    *
+ *                                                           *
+ *  IEEE Symposium on Security and Privacy 2026              *
+ *                                                           *
+ *************************************************************)
+
+(***********************************************
+    Library for the cryptographic primitives
+************************************************)
+
+fun bool2b(bool):bitstring [typeConverter].
+
+const att:channel.
+
+(* Clients representing devices: Alice, Bob, etc. *)
+type client.
+
+(** Elliptic Curve Diffie-Hellman
+------------------------------------ *)
+
+type scalar.
+type point.
+
+fun p2b(point):bitstring [typeConverter].
+
+const null_s:scalar.
+
+const G:point.
+
+(** Scalar multiplication on points. Equivalent to group exponentiation *)
+fun SMUL(scalar,point):point.
+
+
+
+equation forall y,z: scalar; SMUL(y, SMUL(z, G)) = SMUL(z, SMUL(y, G)).
+
+(** The type of private/public DH keys *)
+type key_pair.
+fun KeyPair(scalar,point):key_pair [data].
+
+(** GENERATE_DH(): Returns a new Diffie-Hellman key pair.  *)
+fun dh_scal(scalar):scalar [private].
+
+
+letfun generate_dh() = 
+  let s = 
+    if precise_scalar_pqxdh
+    then new s:scalar; dh_scal(s)
+    else new s[]:scalar; dh_scal(s)
+  in 
+    KeyPair(s,SMUL(s,G))
+.
+
+(** DH(dh_pair, dh_pub): Returns the output from the Diffie-Hellman calculation between the private key from the DH key pair dh_pair and the DH public key dh_pub. 
+  
+  [In SPEC] If the DH function rejects invalid public keys, then this function may raise an exception which terminates processing. 
+  [In Model] The function never rejects invalid public keys. *)
+letfun dh(dh_pair:key_pair, dh_pub:point) = 
+  let KeyPair(dh_prv,_) = dh_pair in
+  SMUL(dh_prv,dh_pub)
+.
+
+
+(* Dummy functions for dh-table compat *)
+
+letfun dh_left(dh_pair:key_pair, dh_pub:point) =  dh(dh_pair, dh_pub).
+
+letfun dh_right(dh_pair:key_pair, dh_pub:point) =  dh(dh_pair, dh_pub).
+
+letfun dh_left_create(dh_pair:key_pair, dh_pub:point) =  dh(dh_pair, dh_pub).
+
+letfun dh_right_create(dh_pair:key_pair, dh_pub:point) =  dh(dh_pair, dh_pub).
+
+let attacker_access_left = 0.
+
+let attacker_access_right = 0.
+
+(* The processes to allow the attacker to retrieve the key when he know the private parts and
+   this is the first instance the key was created. *)
+let attacker_create_left = 0.
+
+let attacker_create_right = 0.
+
+
+
+fun discreteLog(point): scalar 
+reduc forall s:scalar, y:point;
+      discreteLog(SMUL(s,G)) = s [private]. (* Remark, this dL does not work on a g^xy model *)
+
+
+(** KDF
+------------------------------------ *)
+
+(** Type for the root key *)
+type root_key.
+
+(** Type for the root key *)
+type chain_key.
+
+(** Type for the message key *)
+type message_key.
+
+(** Type for the header key *)
+type header_key.
+
+(** KDF_RK(rk, dh_out): Returns a pair (32-byte root key, 32-byte chain key) as the output of applying a KDF keyed by a 32-byte root key rk to a Diffie-Hellman output dh_out.*)
+
+fun kdf_rk_root(root_key, point): root_key.
+fun kdf_rk_chain(root_key, point): chain_key.
+
+letfun kdf_rk(rk:root_key, dh_out:point) =  
+  (kdf_rk_root(rk,dh_out), kdf_rk_chain(rk,dh_out)).
+
+(* KDF_RK_HE(rk, dh_out): Returns a new root key, chain key, and next header key as the output of applying a KDF keyed by root key rk to a Diffie-Hellman output dh_out. *)
+
+fun kdf_rk_head(root_key, point):header_key.
+
+letfun kdf_rk_he(rk: root_key, dh_out:point) =
+  (kdf_rk_root(rk, dh_out), kdf_rk_chain(rk, dh_out), kdf_rk_head(rk, dh_out)).
+
+
+(** KDF_CK(ck): Returns a pair (32-byte chain key, 32-byte message key) as the output of applying a KDF keyed by a 32-byte chain key ck to some constant. *)
+
+fun kdf_ck_chain(chain_key): chain_key.
+fun kdf_ck_message(chain_key): message_key.
+
+letfun kdf_ck(ck:chain_key) =  (kdf_ck_chain(ck), kdf_ck_message(ck)).
+
+fun hkdf(bitstring, bitstring, bitstring) : root_key.
+
+(** Triple Ratchet **)
+
+(** KDF_HYBRID(ecmk, pqmk): Returns an AEAD encryption key as the output of applying a KDF keyed by the concatenation of two 32-byte secrets to some unique constant specifying the protocol in use and its parameters. **)
+fun kdf_hybrid(message_key, message_key):message_key.
+
+(** AEAD
+------------------------------------ *)
+
+(** Associated data used in encryption algorithm *)
+type associated_data.
+const none_ad: associated_data.
+
+(* AEAD Encryption *)
+type nonce.
+const empty_nonce:nonce.
+const encryption_nonce:nonce. (* Fixed nonce for the Signal message encryption *)
+
+fun aead_enc(message_key,nonce,bitstring,associated_data):bitstring.
+fun aead_dec(message_key,nonce,bitstring,associated_data):bitstring 
+reduc forall k:message_key,n:nonce,m:bitstring,ad:associated_data;
+      aead_dec(k,n,aead_enc(k,n,m,ad),ad) = m.
+
+
+(** ENCRYPT(mk, plaintext, associated_data): Returns an AEAD encryption of plaintext with message key mk [5]. The associated_data is authenticated but is not included in the ciphertext. Because each message key is only used once, the AEAD nonce may handled in several ways: fixed to a constant; derived from mk alongside an independent AEAD encryption key; derived as an additional output from KDF_CK(); or chosen randomly and transmitted. *)
+letfun encrypt(mk: message_key, plaintext:bitstring, ad: associated_data) = 
+  aead_enc(mk, encryption_nonce, plaintext, ad) 
+.
+
+(** DECRYPT(mk, ciphertext, associated_data): Returns the AEAD decryption of ciphertext with message key mk. If authentication fails, an exception will be raised that terminates processing. *)
+letfun decrypt(mk: message_key, ciphertext:bitstring, ad: associated_data) = 
+  aead_dec(mk, encryption_nonce, ciphertext, ad) 
+.
+
+
+(* XEdDSA Signatures *)
+fun sign(scalar,bitstring,nonce):bitstring.
+
+fun verify(point,bitstring,bitstring):bool
+
+reduc forall sk:scalar,m:bitstring,n:nonce;
+      verify(SMUL(sk,G),m,sign(sk,m,n)) = true.
+
+
+(** Header functions
+------------------------------------ *)
+
+type header.
+
+fun Header(point, nat, nat):header[data].
+fun bitstringHeader(header):bitstring [typeConverter].
+fun headerBitstring(bitstring):header [typeConverter].
+
+fun MK(header_key): message_key [typeConverter].
+
+(* Header Encryption *)
+letfun hencrypt(hk: header_key, n: nonce, hd:header) = 
+  aead_enc(MK(hk), n, bitstringHeader(hd), none_ad)
+.
+
+letfun hdecrypt(hk: header_key, n: nonce, enc_hd: bitstring) =
+  headerBitstring(aead_dec(MK(hk), n, enc_hd, none_ad))
+.
+
+(** HEADER(dh_pair, pn, n): Creates a new message header containing the DH ratchet public key from the key pair in dh_pair, the previous chain length pn, and the message number n. The returned header object contains ratchet public key dh and integers pn and n. *)
+letfun form_header(dh_pair:key_pair, pn: nat, n: nat) =
+  let KeyPair(_, pub_key:point) = dh_pair in 
+  Header(pub_key, pn, n)
+.
+
+
+(** CONCAT(ad, header): Encodes a message header into a parseable byte sequence, prepends the ad byte sequence, and returns the result. If ad is not guaranteed to be a parseable byte sequence, a length value should be prepended to the output to ensure that the output is parseable as a unique pair (ad, header). *)
+fun concat_he(associated_data, bitstring) : associated_data [data]. (* This one works for an encrypted header *)
+fun concat(associated_data, header) : associated_data [data].

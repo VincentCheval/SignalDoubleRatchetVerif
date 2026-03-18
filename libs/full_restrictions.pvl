@@ -1,0 +1,54 @@
+(* -lib ../params/params-all-comp.pvl *)
+(* -lib gsverif_library.pvl *)
+(* -lib crypto.pvl *)
+(* -lib format.pvl *)
+
+(*************************************************************
+ *                                                           *
+ *  Automated formal analysis of Signal’s Double Ratchet:    *
+ *    attacks, fixes and security proofs                     *
+ *                                                           *
+ *  Vincent Cheval, Charlie Jacomme, and Jessica Richards    *
+ *                                                           *
+ *  IEEE Symposium on Security and Privacy 2026              *
+ *                                                           *
+ *************************************************************)
+
+(* NEVER USE AN OPK *)
+restriction b: bool; event(isBool(b)) ==> b <> true.
+
+(* NEVER REUSE AN SK *)
+restriction ts, ts':timestamp, rk: root_key; 
+  event(ComputedSK(rk, ts)) && event(ComputedSK(rk, ts')) ==> ts = ts' 
+.
+
+(* NEVER REUSE AN SPK / PQSPK on Bob's side *)
+restriction ts, ts':timestamp, spk: key_pair, pqspk: kempriv; 
+  event(RespSPKs(ts, spk, pqspk)) && event(RespSPKs(ts', spk, pqspk)) ==> ts = ts' 
+.
+
+(* NEVER REUSE AN SPK / PQSPK on Alice's side *)
+restriction ts, ts':timestamp, spk: point, pqspk: kempub; 
+  event(InitSPKs(ts, spk, pqspk)) && event(InitSPKs(ts', spk, pqspk)) ==> ts = ts' 
+.
+
+(* Don't allow compromise of the SPK *)
+restriction sinfo:session_info,dhs_prv:scalar;
+  event(SecretSPKpriv(dhs_prv)) && event(CompromiseDHs(sinfo,dhs_prv,0)) ==> false.
+
+
+(* Only one session *)
+restriction n:nat, ts,ts':timestamp;
+  event(OneReplN(n, ts)) && event(OneReplN(n, ts')) ==> ts = ts'
+.
+
+(* DISALLOW PQXDH ATTACKS *)
+restriction event(BrokenKEM) ==> false.
+restriction event(BrokenDH) ==> false.
+restriction x:id,y:kempub; event(CompromisePQPK(x,y)) ==> false.
+restriction x:id,y:point; event(CompromiseSPK(x,y)) ==> false.
+restriction x:id; event(CompromiseIK(x)) ==> false.
+
+
+
+

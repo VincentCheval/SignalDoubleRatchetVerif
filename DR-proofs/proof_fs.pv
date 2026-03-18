@@ -1,0 +1,95 @@
+(* -lib ../params/params-all-comp.pvl *)
+(* -lib ../params/switches.pvl *)
+(* -lib ../libs/gsverif_library.pvl *)
+(* -lib ../libs/crypto.pvl *)
+(* -lib ../libs/format.pvl*)
+(* -lib ../libs/proof_helpers.pvl *)
+(* -lib ../models/DR-functions.pvl *)
+(* -lib ../libs/lemmas.pvl *)
+(* -lib ../models/DR-model.pvl *)
+
+(*************************************************************
+ *                                                           *
+ *  Automated formal analysis of Signal’s Double Ratchet:    *
+ *    attacks, fixes and security proofs                     *
+ *                                                           *
+ *  Vincent Cheval, Charlie Jacomme, and Jessica Richards    *
+ *                                                           *
+ *  IEEE Symposium on Security and Privacy 2026              *
+ *                                                           *
+ *************************************************************)
+
+set nounifIgnoreNtimes = 1.
+noselect sif:session_info, x:bitstring; mess(state_chan( *sif), *x).
+noselect z:scalar; attacker(SMUL( *z,G)) / 30000.
+
+expand axioms_public_knowledge().
+expand axioms_session_state_invariants().
+expand axioms_track_comp().
+expand axioms_internal_state1().
+expand axioms_internal_state2().
+expand axioms_internal_state3().
+
+lemma sd,sd':session_id, r, r', r'':bool, idA,idA',idB,idB':id,sif:session_info,dhs:key_pair, rcv_idx:nat, dhs_prv:scalar, dhs_pub,dhr:point, rk,rk':root_key, cks,cks':chain_key, ckr,ckr':chain_key, hks, hks', nhks, nhks', hkr, hkr', nhkr, nhkr':header_key, n,ns,nr,pn,m_idx,r_idx,r_idx':nat, i,j,k:time;
+
+   (* dhs is secret unless compromised by same session *)
+    mess(state_chan(session(sd, r, idA, idB)),cell(state( KeyPair(dhs_prv,dhs_pub), dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx, rcv_idx)) && attacker( dhs_prv)@j
+    ==> (event(CompromiseDHs(session(sd, r, idA, idB),dhs_prv,r_idx))@i && i<j ||
+         event(CompromiseDHs(session(sd', r, idA, idB'),dhs_prv,0))) ;
+
+    (* rk is secret unless compromised by partners *)
+    mess(state_chan(session(sd,r,idA,idB)),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) && attacker( rk)@j ==>
+      (event(CompromiseRK(session(sd,r',idA',idB'),rk',r_idx')) && r_idx' <= r_idx  && ((r' <> r && idA'=idB && idB'=idA)|| (r'=r && idA'=idA && idB'=idB)))
+      [induction].
+
+lemma sd,sd':session_id, r, r', r'':bool, idA,idA',idB,idB':id,sif:session_info,dhs:key_pair, dhs_prv:scalar, rcv_idx:nat, dhs_pub,dhr:point, rk,rk':root_key, cks,cks':chain_key, ckr,ckr':chain_key, hks, hks', nhks, nhks', hkr, hkr', nhkr, nhkr':header_key, n,ns,nr,pn,m_idx,r_idx,r_idx':nat, i,j,k:time;
+    (* cks is secret unless compromised by partners *)
+    mess(state_chan(session(sd,r,idA,idB)),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) && attacker( cks)
+==> (cks=none_ck  && r_idx = 0 )
+||
+  (event(CompromiseCKs(session(sd,r,idA,idB),cks',n,r_idx)) && n <= ns) 
+ ||
+  (event(CompromiseCKr(session(sd,r',idB,idA),ckr',n,r_idx+1)) && n <= ns && r<> r')
+  ||
+   (event(CompromiseRK(session(sd,r',idA',idB'),rk',r_idx')) && r_idx' + 1 <= r_idx  && ((r<>r' && idA'=idB && idB'=idA)|| (r = r' && idA'=idA && idB'=idB)))
+
+
+ ;
+    (* cks is secret unless compromised by partners *)
+    mess(state_chan(session(sd,r,idA,idB)),cell(state( dhs, dhr, rk, cks, ckr, ns, nr, pn, hks, nhks, hkr, nhkr),r_idx,m_idx,rcv_idx)) && attacker( ckr)
+==>
+( ckr=none_ck && (r_idx=1 || r_idx=0))
+||
+  (event(CompromiseCKs(session(sd,r',idB,idA),cks',n,r_idx')) && n <= nr && r_idx'+1=r_idx && r<>r')
+ ||
+  (event(CompromiseCKr(session(sd,r,idA,idB),ckr',n,r_idx)) && n <= nr)
+  ||
+   (event(CompromiseRK(session(sd,r',idA',idB'),rk',r_idx')) && r_idx' + 2 <= r_idx  && ((r<> r' && idA'=idB && idB'=idA)|| (r = r' && idA'=idA && idB'=idB)))
+
+[induction].
+
+(* Forward secrecy queries (Sender / Receiver) *)
+query sd:session_id, r,r':bool, idA,idB,idA',idB':id, n,ns,nr,r_idx,r_idx':nat, dhs,dhr:point, dr_mk,mk,pq_mk:message_key, ck:chain_key, rk:root_key, p:point, msg:bitstring, i,j,k:time; 
+event(MessageKey(session(sd,r,idA,idB),Sender,dhs, mk,n,r_idx)) && attacker(mk) ==>
+  event(CompromiseMK(session(sd,r',idB,idA), dr_mk,n,r_idx+1)) && mk=kdf_hybrid(dr_mk,pq_mk) || 
+  
+  (event(CompromiseRK(session(sd,r',idA',idB'),rk,r_idx')) && r_idx' + 1 <= r_idx && ((idA'=idB && idB'=idA)|| (r = r' && idA'=idA && idB'=idB))) ||
+  
+  (event(CompromiseCKs(session(sd,r,idA,idB),ck,ns,r_idx)) && ns <= n ) ||
+  (event(CompromiseCKr(session(sd,r',idB,idA),ck,nr,r_idx+1)) && nr <= n)
+.
+
+query sd:session_id, r,r':bool, idA,idB,idA',idB':id, n,ns,nr,r_idx,r_idx':nat, dhs,dhr:point, dr_mk,mk,pq_mk:message_key, ck:chain_key, rk:root_key, p:point, msg:bitstring, i,j,k:time; 
+event(MessageKey(session(sd,r,idA,idB),Receiver,dhs, mk,n,r_idx)) && attacker(mk) ==>
+   event(CompromiseMK(session(sd,r,idA,idB), dr_mk,n,r_idx)) && mk=kdf_hybrid(dr_mk,pq_mk) || 
+  
+  (event(CompromiseRK(session(sd,r',idA',idB'),rk,r_idx')) && r_idx' + 2 <= r_idx && ((idA'=idB && idB'=idA)|| (r=r' && idA'=idA && idB'=idB))) ||
+  
+  (event(CompromiseCKs(session(sd,r', idB,idA),ck,ns,r_idx')) && ns <= n && r_idx'+1 = r_idx) ||
+  (event(CompromiseCKr(session(sd,r,idA,idB),ck,nr,r_idx)) && nr <= n)
+. 
+
+process System
+
+
+

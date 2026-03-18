@@ -1,0 +1,32 @@
+(* -lib ../../params/params-all-comp.pvl *)
+(* -lib ../../params/switches.pvl *)
+(* -lib ../../libs/gsverif_library.pvl *)
+(* -lib ../../libs/crypto.pvl *)
+(* -lib ../../libs/format.pvl*)
+(* -lib ../../libs/proof_helpers.pvl *)
+(* -lib ../../models/DR-functions.pvl *)
+(* -lib ../../libs/lemmas.pvl *)
+(* -lib ../../models/DR-model.pvl *)
+
+(*************************************************************
+ *                                                           *
+ *  Automated formal analysis of Signal’s Double Ratchet:    *
+ *    attacks, fixes and security proofs                     *
+ *                                                           *
+ *  Vincent Cheval, Charlie Jacomme, and Jessica Richards    *
+ *                                                           *
+ *  IEEE Symposium on Security and Privacy 2026              *
+ *                                                           *
+ *************************************************************)
+
+noselect z:scalar; attacker(SMUL(z,G)).
+noselect sif:session_info, x:bitstring; mess(state_chan( *sif), *x).
+
+expand GSVerif_Axiom_PreciseInput().
+expand axioms_public_knowledge().
+
+expand lemmas_internal_state1().
+
+query attacker(()).
+
+process System
