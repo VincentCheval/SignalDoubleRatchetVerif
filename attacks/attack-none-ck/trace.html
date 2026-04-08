@@ -1,0 +1,78 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+                      <html>
+                    <head>
+                    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+                    <title>ProVerif: trace for query 2</title>
+                    <link rel="stylesheet" href="cssproverif.css">
+                                                                           </head>
+                                                                         <body>
+                                                                         <H1>Trace</H1>
+<span class="keyword">new</span> <span class="name">ts</span>: <span class="type">timestamp</span> creating <span class="name">ts_12</span> at <a href="process_1.html#occ2" target="process" class="occ">{2}</a> in copy <span class="name">a</span><br>
+<br>
+<span class="keyword">event</span> <span class="fun">OneRepl</span>(<span class="name">ts_12</span>) at <a href="process_1.html#occ3" target="process" class="occ">{3}</a> in copy <span class="name">a</span><br>
+<br>
+<span class="keyword">in</span>(<span class="fun">att</span>, <span class="fun"></span>(<span class="name">a_1</span>,<span class="name">a_2</span>)) at <a href="process_1.html#occ5" target="process" class="occ">{5}</a> in copy <span class="name">a</span><br>
+<br>
+<span class="keyword">in</span>(<span class="fun">att</span>, <span class="fun"></span>(<span class="name">a_3</span>,<span class="name">a_4</span>,<span class="name">a_5</span>)) at <a href="process_1.html#occ6" target="process" class="occ">{6}</a> in copy <span class="name">a</span><br>
+<br>
+<span class="keyword">event</span> <span class="fun">Using_HE</span>(<span class="fun">false</span>) at <a href="process_1.html#occ8" target="process" class="occ">{8}</a> in copy <span class="name">a</span><br>
+<br>
+<span class="keyword">new</span> <span class="name">ts_1</span>: <span class="type">timestamp</span> creating <span class="name">ts_13</span> at <a href="process_1.html#occ10" target="process" class="occ">{10}</a> in copy <span class="name">a</span><br>
+<br>
+<span class="keyword">event</span> <span class="fun">PreciseInput</span>(<span class="name">ts_13</span>,<span class="fun"></span>(<span class="name">a_1</span>,<span class="name">a_2</span>)) at <a href="process_1.html#occ11" target="process" class="occ">{11}</a> in copy <span class="name">a</span><br>
+<br>
+<span class="keyword">new</span> <span class="name">s</span>: <span class="type">scalar</span> creating <span class="name">s_9</span> at <a href="process_1.html#occ13" target="process" class="occ">{13}</a> in copy <span class="name">a</span><br>
+<br>
+<span class="keyword">new</span> <span class="name">SK</span>: <span class="type">root_key</span> creating <span class="name">SK_4</span> at <a href="process_1.html#occ16" target="process" class="occ">{16}</a> in copy <span class="name">a</span><br>
+<br>
+<span class="keyword">event</span> <span class="fun">ChosenSPK</span>(<span class="fun">session</span>(<span class="fun">sid_of_rk</span>(<span class="name">SK_4</span>),<span class="fun">false</span>,<span class="name">a_2</span>,<span class="name">a_1</span>),<span class="fun">KeyPair</span>(<span class="fun">dh_scal</span>(<span class="name">s_9</span>),<span class="fun">SMUL</span>(<span class="fun">dh_scal</span>(<span class="name">s_9</span>),<span class="fun">G</span>))) at <a href="process_1.html#occ18" target="process" class="occ">{18}</a> in copy <span class="name">a</span><br>
+<br>
+<span class="keyword">out</span>(<span class="fun">att</span>, <span class="var">~M</span>) with <span class="var">~M</span> = <span class="fun">SMUL</span>(<span class="fun">dh_scal</span>(<span class="name">s_9</span>),<span class="fun">G</span>) at <a href="process_1.html#occ21" target="process" class="occ">{21}</a> in copy <span class="name">a</span><br>
+<br>
+<span class="keyword">event</span> <span class="fun">KnowledgeAtt</span>(<span class="fun">SMUL</span>(<span class="fun">dh_scal</span>(<span class="name">s_9</span>),<span class="fun">G</span>)) at <a href="process_1.html#occ22" target="process" class="occ">{22}</a> in copy <span class="name">a</span><br>
+<br>
+<span class="keyword">event</span> <span class="fun">Header_Encryption</span>(<span class="fun">session</span>(<span class="fun">sid_of_rk</span>(<span class="name">SK_4</span>),<span class="fun">false</span>,<span class="name">a_2</span>,<span class="name">a_1</span>),<span class="fun">false</span>) at <a href="process_1.html#occ361" target="process" class="occ">{361}</a> in copy <span class="name">a</span><br>
+<br>
+<span class="keyword">event</span> <span class="fun">Header_Encryption</span>(<span class="fun">session</span>(<span class="fun">sid_of_rk</span>(<span class="name">SK_4</span>),<span class="fun">true</span>,<span class="name">a_1</span>,<span class="name">a_2</span>),<span class="fun">false</span>) at <a href="process_1.html#occ25" target="process" class="occ">{25}</a> in copy <span class="name">a</span><br>
+<br>
+<span class="keyword">new</span> <span class="name">s_2</span>: <span class="type">scalar</span> creating <span class="name">s_10</span> at <a href="process_1.html#occ26" target="process" class="occ">{26}</a> in copy <span class="name">a</span><br>
+<br>
+<span class="keyword">out</span>(<span class="fun">att</span>, <span class="var">~M_1</span>) with <span class="var">~M_1</span> = <span class="fun">SMUL</span>(<span class="fun">dh_scal</span>(<span class="name">s_10</span>),<span class="fun">G</span>) at <a href="process_1.html#occ30" target="process" class="occ">{30}</a> in copy <span class="name">a</span><br>
+<br>
+<span class="keyword">event</span> <span class="fun">KnowledgeAtt</span>(<span class="fun">SMUL</span>(<span class="fun">dh_scal</span>(<span class="name">s_10</span>),<span class="fun">G</span>)) at <a href="process_1.html#occ31" target="process" class="occ">{31}</a> in copy <span class="name">a</span><br>
+<br>
+<span class="keyword">out</span>(<span class="fun">att</span>, <span class="var">~M_2</span>) with <span class="var">~M_2</span> = <span class="fun">none_hk</span> at <a href="process_1.html#occ40" target="process" class="occ">{40}</a> in copy <span class="name">a</span><br>
+<br>
+<span class="keyword">in</span>(<span class="fun">att</span>, <span class="fun"></span>(<span class="fun">Header</span>(<span class="fun">none_dh</span>,<span class="name">a_6</span>,0),<span class="name">a_7</span>)) at <a href="process_1.html#occ406" target="process" class="occ">{406}</a> in copy <span class="name">a</span>, <span class="name">a_8</span><br>
+<br>
+<span class="keyword">in</span>(<span class="fun">att</span>, <span class="fun"></span>(<span class="name">a_9</span>,<span class="name">a_10</span>)) at <a href="process_1.html#occ407" target="process" class="occ">{407}</a> in copy <span class="name">a</span>, <span class="name">a_8</span><br>
+<br>
+<span class="keyword">new</span> <span class="name">ts_9</span>: <span class="type">timestamp</span> creating <span class="name">ts_14</span> at <a href="process_1.html#occ409" target="process" class="occ">{409}</a> in copy <span class="name">a</span>, <span class="name">a_8</span><br>
+<br>
+<span class="keyword">event</span> <span class="fun">PreciseInput</span>(<span class="name">ts_14</span>,<span class="fun"></span>(<span class="fun">Header</span>(<span class="fun">none_dh</span>,<span class="name">a_6</span>,0),<span class="name">a_7</span>)) at <a href="process_1.html#occ410" target="process" class="occ">{410}</a> in copy <span class="name">a</span>, <span class="name">a_8</span><br>
+<br>
+<span class="keyword">out</span>(<span class="fun">state_chan</span>(<span class="fun">session</span>(<span class="fun">sid_of_rk</span>(<span class="name">SK_4</span>),<span class="fun">false</span>,<span class="name">a_2</span>,<span class="name">a_1</span>)), <span class="fun">cell</span>(<span class="fun">state</span>(<span class="fun">KeyPair</span>(<span class="fun">dh_scal</span>(<span class="name">s_9</span>),<span class="fun">SMUL</span>(<span class="fun">dh_scal</span>(<span class="name">s_9</span>),<span class="fun">G</span>)),<span class="fun">none_dh</span>,<span class="name">SK_4</span>,<span class="fun">none_ck</span>,<span class="fun">none_ck</span>,0,0,0,<span class="fun">none_hk</span>,<span class="fun">none_hk</span>,<span class="fun">none_hk</span>,<span class="fun">none_hk</span>),0,0,0)) at <a href="process_1.html#occ365" target="process" class="occ">{365}</a> in copy <span class="name">a</span> received at <a href="process_1.html#occ413" target="process" class="occ">{413}</a> in copy <span class="name">a</span>, <span class="name">a_8</span><br>
+<br>
+<span class="keyword">event</span> <span class="fun">Sanity</span>(<span class="fun">state_chan</span>(<span class="fun">session</span>(<span class="fun">sid_of_rk</span>(<span class="name">SK_4</span>),<span class="fun">false</span>,<span class="name">a_2</span>,<span class="name">a_1</span>)),2,0,0) at <a href="process_1.html#occ587" target="process" class="occ">{587}</a> in copy <span class="name">a</span>, <span class="name">a_8</span><br>
+<br>
+<span class="keyword">new</span> <span class="name">st_24</span>: <span class="type">timestamp</span> creating <span class="name">st_28</span> at <a href="process_1.html#occ589" target="process" class="occ">{589}</a> in copy <span class="name">a</span>, <span class="name">a_8</span><br>
+<br>
+<span class="keyword">event</span> <span class="fun">CounterChange</span>(<span class="fun">C</span>(<span class="fun">CL</span>(<span class="fun">state_chan</span>(<span class="fun">session</span>(<span class="fun">sid_of_rk</span>(<span class="name">SK_4</span>),<span class="fun">false</span>,<span class="name">a_2</span>,<span class="name">a_1</span>)),2),<span class="fun">Incr</span>),<span class="name">st_28</span>,0) at <a href="process_1.html#occ590" target="process" class="occ">{590}</a> in copy <span class="name">a</span>, <span class="name">a_8</span><br>
+<br>
+<span class="keyword">event</span> <span class="fun">SynchCounterContent</span>(<span class="fun">C</span>(<span class="fun">CL</span>(<span class="fun">state_chan</span>(<span class="fun">session</span>(<span class="fun">sid_of_rk</span>(<span class="name">SK_4</span>),<span class="fun">false</span>,<span class="name">a_2</span>,<span class="name">a_1</span>)),2),<span class="fun">Incr</span>),0,<span class="fun"></span>(<span class="fun">state</span>(<span class="fun">KeyPair</span>(<span class="fun">dh_scal</span>(<span class="name">s_9</span>),<span class="fun">SMUL</span>(<span class="fun">dh_scal</span>(<span class="name">s_9</span>),<span class="fun">G</span>)),<span class="fun">none_dh</span>,<span class="name">SK_4</span>,<span class="fun">none_ck</span>,<span class="fun">none_ck</span>,0,0,0,<span class="fun">none_hk</span>,<span class="fun">none_hk</span>,<span class="fun">none_hk</span>,<span class="fun">none_hk</span>),0,0)) at <a href="process_1.html#occ594" target="process" class="occ">{594}</a> in copy <span class="name">a</span>, <span class="name">a_8</span><br>
+<br>
+<span class="keyword">new</span> <span class="name">st_25</span>: <span class="type">timestamp</span> creating <span class="name">st_29</span> at <a href="process_1.html#occ597" target="process" class="occ">{597}</a> in copy <span class="name">a</span>, <span class="name">a_8</span><br>
+<br>
+<span class="keyword">event</span> <span class="fun">CounterChange</span>(<span class="fun">C</span>(<span class="fun">CL</span>(<span class="fun">state_chan</span>(<span class="fun">session</span>(<span class="fun">sid_of_rk</span>(<span class="name">SK_4</span>),<span class="fun">false</span>,<span class="name">a_2</span>,<span class="name">a_1</span>)),0),<span class="fun">Incr</span>),<span class="name">st_29</span>,0) at <a href="process_1.html#occ598" target="process" class="occ">{598}</a> in copy <span class="name">a</span>, <span class="name">a_8</span><br>
+<br>
+<span class="keyword">event</span> <span class="fun">SynchCounterContent</span>(<span class="fun">C</span>(<span class="fun">CL</span>(<span class="fun">state_chan</span>(<span class="fun">session</span>(<span class="fun">sid_of_rk</span>(<span class="name">SK_4</span>),<span class="fun">false</span>,<span class="name">a_2</span>,<span class="name">a_1</span>)),0),<span class="fun">Incr</span>),0,<span class="fun"></span>(<span class="fun">state</span>(<span class="fun">KeyPair</span>(<span class="fun">dh_scal</span>(<span class="name">s_9</span>),<span class="fun">SMUL</span>(<span class="fun">dh_scal</span>(<span class="name">s_9</span>),<span class="fun">G</span>)),<span class="fun">none_dh</span>,<span class="name">SK_4</span>,<span class="fun">none_ck</span>,<span class="fun">none_ck</span>,0,0,0,<span class="fun">none_hk</span>,<span class="fun">none_hk</span>,<span class="fun">none_hk</span>,<span class="fun">none_hk</span>),0,0)) at <a href="process_1.html#occ602" target="process" class="occ">{602}</a> in copy <span class="name">a</span>, <span class="name">a_8</span><br>
+<br>
+<span class="keyword">in</span>(<span class="fun">att</span>, <span class="name">a_11</span>) at <a href="process_1.html#occ606" target="process" class="occ">{606}</a> in copy <span class="name">a</span>, <span class="name">a_8</span><br>
+<br>
+<span class="keyword">event</span> <span class="fun">MessageKey</span>(<span class="fun">session</span>(<span class="fun">sid_of_rk</span>(<span class="name">SK_4</span>),<span class="fun">false</span>,<span class="name">a_2</span>,<span class="name">a_1</span>),<span class="fun">Receiver</span>,<span class="fun">none_dh</span>,<span class="fun">kdf_hybrid</span>(<span class="fun">kdf_ck_message</span>(<span class="fun">none_ck</span>),<span class="name">a_11</span>),0,0) at <a href="process_1.html#occ608" target="process" class="occ">{608}</a> in copy <span class="name">a</span>, <span class="name">a_8</span> (goal)<br>
+<br>
+The event <span class="fun">MessageKey</span>(<span class="fun">session</span>(<span class="fun">sid_of_rk</span>(<span class="name">SK_4</span>),<span class="fun">false</span>,<span class="name">a_2</span>,<span class="name">a_1</span>),<span class="fun">Receiver</span>,<span class="fun">none_dh</span>,<span class="fun">kdf_hybrid</span>(<span class="fun">kdf_ck_message</span>(<span class="fun">none_ck</span>),<span class="name">a_11</span>),0,0) is executed at <a href="process_1.html#occ608" target="process" class="occ">{608}</a> in copy <span class="name">a</span>, <span class="name">a_8</span>.<br>
+The attacker has the message <span class="fun">kdf_hybrid</span>(<span class="fun">kdf_ck_message</span>(<span class="fun">none_ck</span>),<span class="name">a_11</span>).<br>
+A trace has been found.<br>
+</body>
+</html>
